@@ -85,7 +85,7 @@
 					};
 				};
 			};
-			buildConfigurationList = BA6FE14F304AA845002473DE /* Build configuration list for PBXProject "test" */;
+			buildConfigurationList = BA6FE14F304AA845002473DE /* Build configuration list for PBXProject "FabricLab" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -332,7 +332,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		BA6FE14F304AA845002473DE /* Build configuration list for PBXProject "test" */ = {
+		BA6FE14F304AA845002473DE /* Build configuration list for PBXProject "FabricLab" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				BA6FE15D304AA847002473DE /* Debug */,
