@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		BA6FE154304AA845002473DE /* test.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = test.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BA6FE154304AA845002473DE /* FabricLab.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FabricLab.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -40,7 +40,7 @@
 		BA6FE155304AA845002473DE /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				BA6FE154304AA845002473DE /* test.app */,
+				BA6FE154304AA845002473DE /* FabricLab.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,9 +48,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		BA6FE153304AA845002473DE /* test */ = {
+		BA6FE153304AA845002473DE /* FabricLab */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = BA6FE15F304AA847002473DE /* Build configuration list for PBXNativeTarget "test" */;
+			buildConfigurationList = BA6FE15F304AA847002473DE /* Build configuration list for PBXNativeTarget "FabricLab" */;
 			buildPhases = (
 				BA6FE150304AA845002473DE /* Sources */,
 				BA6FE151304AA845002473DE /* Frameworks */,
@@ -63,11 +63,11 @@
 			fileSystemSynchronizedGroups = (
 				BA6FE156304AA845002473DE /* test */,
 			);
-			name = test;
+			name = FabricLab;
 			packageProductDependencies = (
 			);
 			productName = test;
-			productReference = BA6FE154304AA845002473DE /* test.app */;
+			productReference = BA6FE154304AA845002473DE /* FabricLab.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -99,7 +99,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				BA6FE153304AA845002473DE /* test */,
+				BA6FE153304AA845002473DE /* FabricLab */,
 			);
 		};
 /* End PBXProject section */
@@ -341,7 +341,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		BA6FE15F304AA847002473DE /* Build configuration list for PBXNativeTarget "test" */ = {
+		BA6FE15F304AA847002473DE /* Build configuration list for PBXNativeTarget "FabricLab" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				BA6FE160304AA847002473DE /* Debug */,
