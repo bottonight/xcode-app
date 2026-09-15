@@ -29,13 +29,24 @@ final class AppModel {
     @ObservationIgnored private let predictionService: PredictionServicing
     @ObservationIgnored private let sessionStore: SessionStoring
 
+    convenience init() {
+        self.init(
+            bluetooth: BluetoothManager(),
+            authService: MockAuthService(),
+            deviceAPI: MockDeviceAPI(),
+            measurementService: MockMeasurementService(),
+            predictionService: MockPredictionService(),
+            sessionStore: KeychainSessionStore()
+        )
+    }
+
     init(
-        bluetooth: BluetoothManager = BluetoothManager(),
-        authService: AuthServicing = MockAuthService(),
-        deviceAPI: DeviceAPIServicing = MockDeviceAPI(),
-        measurementService: MeasurementServicing = MockMeasurementService(),
-        predictionService: PredictionServicing = MockPredictionService(),
-        sessionStore: SessionStoring = KeychainSessionStore()
+        bluetooth: BluetoothManager,
+        authService: AuthServicing,
+        deviceAPI: DeviceAPIServicing,
+        measurementService: MeasurementServicing,
+        predictionService: PredictionServicing,
+        sessionStore: SessionStoring
     ) {
         self.bluetooth = bluetooth
         self.authService = authService

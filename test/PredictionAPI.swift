@@ -410,7 +410,7 @@ final class LivePredictionService: PredictionServicing {
     private let builtinProvider: (NearbyDevice) -> NIRBuiltinReference?
 
     init(
-        api: LegacyPredictionAPI = LegacyPredictionAPI(),
+        api: LegacyPredictionAPI,
         identityProvider: @escaping (NearbyDevice) -> DeviceIdentity?,
         builtinProvider: @escaping (NearbyDevice) -> NIRBuiltinReference? = { _ in nil }
     ) {
