@@ -8,10 +8,13 @@
 import SwiftUI
 
 @main
-struct testApp: App {
+struct FabricLabApp: App {
+    @State private var appModel = AppModel()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(appModel)
         }
     }
 }
