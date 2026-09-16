@@ -47,7 +47,7 @@ final class BluetoothManager: NSObject {
         centralManager = CBCentralManager(
             delegate: self,
             queue: nil,
-            options: [CBCentralManagerOptionRestoreIdentifierKey: "com.fabriceyes.fabriclab.central"]
+            options: nil
         )
     }
 
@@ -193,13 +193,6 @@ extension BluetoothManager: CBCentralManagerDelegate {
         )
     }
 
-    func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {
-        let restored = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral] ?? []
-        for peripheral in restored {
-            peripheral.delegate = self
-            peripherals[peripheral.identifier] = peripheral
-        }
-    }
 }
 
 extension BluetoothManager: CBPeripheralDelegate {
