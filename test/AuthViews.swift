@@ -11,10 +11,6 @@ struct AuthenticationView: View {
         case username
     }
 
-    private var canSubmit: Bool {
-        phoneNumber.count == 11 && !username.trimmingCharacters(in: .whitespaces).isEmpty
-    }
-
     var body: some View {
         NavigationStack {
             ZStack {
@@ -22,7 +18,7 @@ struct AuthenticationView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 28) {
                         header
-                        registrationForm
+                        loginForm
                         privacyNote
                     }
                     .padding(24)
@@ -50,9 +46,9 @@ struct AuthenticationView: View {
         .padding(.top, 28)
     }
 
-    private var registrationForm: some View {
+    private var loginForm: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("功能验证")
+            Text("用户登录")
                 .font(.title2.bold())
 
             TextField("手机号", text: $phoneNumber)
@@ -72,14 +68,13 @@ struct AuthenticationView: View {
                 app.startValidationSession(phoneNumber: phoneNumber, username: username)
                 focusedField = nil
             } label: {
-                Text("进入功能验证")
+                Text("登录")
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
             }
             .buttonStyle(.borderedProminent)
             .tint(FabricTheme.indigo)
-            .disabled(!canSubmit || app.isBusy)
         }
         .textFieldStyle(.plain)
         .brandCard()
@@ -87,8 +82,8 @@ struct AuthenticationView: View {
 
     private var privacyNote: some View {
         Label(
-            "当前版本暂不调用认证接口，手机号仅用于旧设备与预测接口联调。",
-            systemImage: "hammer"
+            "登录即表示同意用户协议和隐私政策。",
+            systemImage: "lock.shield"
         )
         .font(.footnote)
         .foregroundStyle(.secondary)

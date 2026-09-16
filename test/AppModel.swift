@@ -65,14 +65,14 @@ final class AppModel {
     }
 
     func startValidationSession(phoneNumber: String, username: String) {
-        guard phoneNumber.count == 11 else {
-            errorMessage = AppServiceError.invalidPhone.localizedDescription
-            return
-        }
+        let phoneNumber = phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        let username = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let validationPhone = phoneNumber.isEmpty ? "13800000000" : phoneNumber
+        let validationName = username.isEmpty ? "测试用户" : username
         let session = UserSession(
-            userID: "validation-\(phoneNumber)",
-            phoneNumber: phoneNumber,
-            username: username,
+            userID: "validation-\(validationPhone)",
+            phoneNumber: validationPhone,
+            username: validationName,
             authToken: "validation-only",
             adminLevel: 2,
             canViewSpectrum: true
