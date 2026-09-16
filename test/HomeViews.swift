@@ -367,6 +367,10 @@ struct MeasurementWorkbenchView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Label("也可按设备实体扫描键", systemImage: "hand.tap")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
             Button {
                 Task { await app.runScan() }
             } label: {

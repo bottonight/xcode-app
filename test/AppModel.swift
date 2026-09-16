@@ -56,6 +56,17 @@ final class AppModel {
         self.predictionService = predictionService
         self.sessionStore = sessionStore
         session = sessionStore.load()
+        bluetooth.onHardwareScan = { [weak self] capture in
+            Task { @MainActor [weak self] in
+                await self?.receiveHardwareScan(capture)
+            }
+        }
+        bluetooth.onHardwareScanError = { [weak self] error in
+            Task { @MainActor [weak self] in
+                guard let self, case .workbench = self.homeRoute else { return }
+                self.errorMessage = error.localizedDescription
+            }
+        }
     }
 
     var permissions: DevicePermissions {
@@ -152,20 +163,13 @@ final class AppModel {
                 device: selectedDevice,
                 calibration: calibrationMode
             )
-            if scanMode == .single {
-                captures = [capture]
-                predictionResult = try await predictionService.predict(
-                    captures: captures,
-                    device: selectedDevice,
-                    identity: selectedIdentity,
-                    mode: selectedMode,
-                    calibration: calibrationMode,
-                    session: session
-                )
-            } else {
-                captures.append(capture)
-                predictionResult = nil
-            }
+            try await acceptCapture(
+                capture,
+                session: session,
+                device: selectedDevice,
+                identity: selectedIdentity,
+                mode: selectedMode
+            )
         }
     }
 
@@ -262,6 +266,55 @@ final class AppModel {
         availableModes = []
         pendingBinding = false
         clearMeasurements()
+    }
+
+    private func receiveHardwareScan(_ capture: ScanCapture) async {
+        guard case .workbench = homeRoute,
+              let session,
+              let selectedDevice,
+              let selectedIdentity,
+              let selectedMode
+        else { return }
+        guard !isBusy else {
+            errorMessage = "当前任务尚未完成，请稍后再按设备扫描键"
+            return
+        }
+        guard scanMode == .single || captures.count < 9 else {
+            errorMessage = "多次扫描最多保存 9 次"
+            return
+        }
+        await perform {
+            try await acceptCapture(
+                capture,
+                session: session,
+                device: selectedDevice,
+                identity: selectedIdentity,
+                mode: selectedMode
+            )
+        }
+    }
+
+    private func acceptCapture(
+        _ capture: ScanCapture,
+        session: UserSession,
+        device: NearbyDevice,
+        identity: DeviceIdentity,
+        mode: AnalysisMode
+    ) async throws {
+        if scanMode == .single {
+            captures = [capture]
+            predictionResult = try await predictionService.predict(
+                captures: captures,
+                device: device,
+                identity: identity,
+                mode: mode,
+                calibration: calibrationMode,
+                session: session
+            )
+        } else {
+            captures.append(capture)
+            predictionResult = nil
+        }
     }
 
     @discardableResult

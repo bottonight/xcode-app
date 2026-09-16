@@ -61,6 +61,7 @@ private enum BluetoothOperation {
     case irIdentity
     case nirWaitingForScanIndex
     case nirCollecting
+    case nirHardwareCollecting
     case irCollecting
 }
 
@@ -120,6 +121,8 @@ final class BluetoothManager: NSObject {
     private(set) var connectedDevice: NearbyDevice?
     private(set) var connectedIdentity: DeviceIdentity?
 
+    @ObservationIgnored var onHardwareScan: ((ScanCapture) -> Void)?
+    @ObservationIgnored var onHardwareScanError: ((Error) -> Void)?
     @ObservationIgnored private var centralManager: CBCentralManager!
     @ObservationIgnored private var peripherals: [UUID: CBPeripheral] = [:]
     @ObservationIgnored private var characteristics: [String: [CBCharacteristic]] = [:]
@@ -399,25 +402,31 @@ final class BluetoothManager: NSObject {
         }
 
         if uuid == BLEUUID.nirStartScan,
-           operation == .nirWaitingForScanIndex,
+           operation == .nirWaitingForScanIndex || operation == .idle,
            bytes.first == 0xFF,
            bytes.count >= 5 {
             guard let request = characteristic(BLEUUID.nirRequestScanData, writable: true) else {
-                failScan(with: BluetoothError.missingCharacteristic("NIR Request Scan Data"))
+                failCurrentNIRScan(with: BluetoothError.missingCharacteristic("NIR Request Scan Data"))
                 return
             }
-            operation = .nirCollecting
+            let initiatedByHardware = operation == .idle
+            operation = initiatedByHardware ? .nirHardwareCollecting : .nirCollecting
             nirBuffer.removeAll(keepingCapacity: true)
             do {
                 try write(Data(bytes[1 ... 4]), to: request, on: peripheral)
+                startTimeout(seconds: 15, operationName: "读取 NIR 扫描数据") { [weak self] in
+                    self?.failCurrentNIRScan(
+                        with: BluetoothError.timeout("读取 NIR 扫描数据")
+                    )
+                }
             } catch {
-                failScan(with: error)
+                failCurrentNIRScan(with: error)
             }
             return
         }
 
         guard uuid == BLEUUID.nirReturnScanData,
-              operation == .nirCollecting,
+              operation == .nirCollecting || operation == .nirHardwareCollecting,
               let packetNumber = bytes.first
         else { return }
         if packetNumber != 0 {
@@ -425,19 +434,22 @@ final class BluetoothManager: NSObject {
         }
         if packetNumber == 202 {
             guard nirBuffer.count == 3822 else {
-                failScan(
+                failCurrentNIRScan(
                     with: BluetoothError.invalidData("NIR 光谱长度为 \(nirBuffer.count)，应为 3822")
                 )
                 return
             }
-            completeScan(
-                ScanCapture(
-                    id: UUID(),
-                    capturedAt: Date(),
-                    data: .nir(nirBuffer.map(Int.init)),
-                    preview: []
-                )
+            let capture = ScanCapture(
+                id: UUID(),
+                capturedAt: Date(),
+                data: .nir(nirBuffer.map(Int.init)),
+                preview: []
             )
+            if operation == .nirHardwareCollecting {
+                completeHardwareScan(capture)
+            } else {
+                completeScan(capture)
+            }
         }
     }
 
@@ -525,6 +537,12 @@ final class BluetoothManager: NSObject {
         scanContinuation = nil
     }
 
+    private func completeHardwareScan(_ capture: ScanCapture) {
+        timeoutTask?.cancel()
+        operation = .idle
+        onHardwareScan?(capture)
+    }
+
     private func failConnection(with error: BluetoothError) {
         timeoutTask?.cancel()
         connectionContinuation?.resume(throwing: error)
@@ -552,11 +570,31 @@ final class BluetoothManager: NSObject {
         scanContinuation = nil
     }
 
+    private func failCurrentNIRScan(with error: Error) {
+        if operation == .nirHardwareCollecting || scanContinuation == nil {
+            timeoutTask?.cancel()
+            operation = .idle
+            onHardwareScanError?(error)
+        } else {
+            failScan(with: error)
+        }
+    }
+
     private func failAllPending(with error: BluetoothError) {
-        failConnection(with: error)
-        failIdentity(with: error)
-        failBuiltin(with: error)
-        failScan(with: error)
+        let wasHardwareScan = operation == .nirHardwareCollecting
+        timeoutTask?.cancel()
+        connectionContinuation?.resume(throwing: error)
+        connectionContinuation = nil
+        identityContinuation?.resume(throwing: error)
+        identityContinuation = nil
+        builtinContinuation?.resume(throwing: error)
+        builtinContinuation = nil
+        scanContinuation?.resume(throwing: error)
+        scanContinuation = nil
+        operation = .idle
+        if wasHardwareScan {
+            onHardwareScanError?(error)
+        }
     }
 
     private func startTimeout(
@@ -686,7 +724,7 @@ extension BluetoothManager: MeasurementServicing {
         guard connectedDevice?.id == device.id,
               let peripheral = peripherals[device.id]
         else { throw BluetoothError.deviceLost }
-        guard scanContinuation == nil else {
+        guard scanContinuation == nil, operation == .idle else {
             throw BluetoothError.connectionFailed("已有扫描正在进行")
         }
 
