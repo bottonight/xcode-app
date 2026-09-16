@@ -96,8 +96,8 @@ enum IRIntensityPayload: Encodable {
 }
 
 enum NIRWavePayload: Encodable {
-    case single([Int])
-    case multiple([[Int]])
+    case single([String])
+    case multiple([[String]])
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
@@ -122,11 +122,11 @@ enum IRWavePayload: Encodable {
 }
 
 private struct NIRPredictionRequest: Encodable {
-    let data: [Int]
+    let data: [String]
     let macNIR: String?
     let modelName: String
     let isBuiltin: Bool
-    let builtin: [Int]?
+    let builtin: [String]?
     let openid: String
     let phoneNumber: String
     let serialNumber: String
@@ -164,7 +164,7 @@ private struct IRPredictionRequest: Encodable {
 }
 
 private struct NIRReferenceRequest: Encodable {
-    let data: [Int]
+    let data: [String]
     let macNIR: String?
     let serialNumber: String
     let uuid: String?
@@ -270,11 +270,11 @@ final class LegacyPredictionAPI {
         }
         let scans = try Self.nirScans(from: captures)
         let request = NIRPredictionRequest(
-            data: scans.flatMap { $0 },
+            data: scans.flatMap { $0 }.map(String.init),
             macNIR: identity.macNIR,
             modelName: mode.id,
             isBuiltin: builtin != nil,
-            builtin: builtin,
+            builtin: builtin?.map(String.init),
             openid: "",
             phoneNumber: account,
             serialNumber: identity.serialNumber,
@@ -312,7 +312,7 @@ final class LegacyPredictionAPI {
     ) async throws -> SaveWaveResponse {
         let data = try Self.nirScans(from: [capture])[0]
         let request = NIRReferenceRequest(
-            data: data,
+            data: data.map(String.init),
             macNIR: identity.macNIR,
             serialNumber: identity.serialNumber,
             uuid: identity.uuid
@@ -346,7 +346,10 @@ final class LegacyPredictionAPI {
         image: String? = nil
     ) async throws -> SaveWaveResponse {
         let scans = try Self.nirScans(from: captures)
-        let wave: NIRWavePayload = scans.count == 1 ? .single(scans[0]) : .multiple(scans)
+        let encodedScans = scans.map { $0.map(String.init) }
+        let wave: NIRWavePayload = encodedScans.count == 1
+            ? .single(encodedScans[0])
+            : .multiple(encodedScans)
         let request = SaveNIRWaveRequest(
             serialNumber: identity.serialNumber,
             deviceName: identity.name,
