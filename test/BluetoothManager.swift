@@ -185,7 +185,7 @@ final class BluetoothManager: NSObject {
             switch device.kind {
             case .nir:
                 guard let serial = characteristic(BLEUUID.serialNumber, readable: true) else {
-                    failIdentity(with: .missingCharacteristic("NIR Serial Number 2A25"))
+                    failIdentity(with: BluetoothError.missingCharacteristic("NIR Serial Number 2A25"))
                     return
                 }
                 operation = .nirIdentity
@@ -198,14 +198,14 @@ final class BluetoothManager: NSObject {
                     peripheral.readValue(for: systemID)
                 }
                 startTimeout(seconds: 6, operationName: "读取设备编号") { [weak self] in
-                    self?.failIdentity(with: .timeout("读取设备编号"))
+                    self?.failIdentity(with: BluetoothError.timeout("读取设备编号"))
                 }
             case .ir2210:
                 operation = .irIdentity
                 irSNGroups.removeAll()
                 irAssembler.reset()
                 startTimeout(seconds: 6, operationName: "读取设备编号") { [weak self] in
-                    self?.failIdentity(with: .timeout("读取设备编号"))
+                    self?.failIdentity(with: BluetoothError.timeout("读取设备编号"))
                 }
                 Task { @MainActor [weak self] in
                     try? await Task.sleep(nanoseconds: 100_000_000)
@@ -273,7 +273,7 @@ final class BluetoothManager: NSObject {
         for values in characteristics.values {
             for characteristic in values where characteristic.properties.contains(.notify)
                 || characteristic.properties.contains(.indicate) {
-                characteristic.service?.peripheral.setNotifyValue(true, for: characteristic)
+                characteristic.service?.peripheral?.setNotifyValue(true, for: characteristic)
             }
         }
         timeoutTask?.cancel()
@@ -340,7 +340,7 @@ final class BluetoothManager: NSObject {
            bytes.first == 0xFF,
            bytes.count >= 5 {
             guard let request = characteristic(BLEUUID.nirRequestScanData, writable: true) else {
-                failScan(with: .missingCharacteristic("NIR Request Scan Data"))
+                failScan(with: BluetoothError.missingCharacteristic("NIR Request Scan Data"))
                 return
             }
             operation = .nirCollecting
@@ -362,7 +362,9 @@ final class BluetoothManager: NSObject {
         }
         if packetNumber == 202 {
             guard nirBuffer.count == 3822 else {
-                failScan(with: .invalidData("NIR 光谱长度为 \(nirBuffer.count)，应为 3822"))
+                failScan(
+                    with: BluetoothError.invalidData("NIR 光谱长度为 \(nirBuffer.count)，应为 3822")
+                )
                 return
             }
             completeScan(
@@ -391,7 +393,7 @@ final class BluetoothManager: NSObject {
                     let serial = String(bytes: first + second, encoding: .ascii)?
                         .trimmingCharacters(in: .controlCharacters) ?? ""
                     guard !serial.isEmpty else {
-                        failIdentity(with: .invalidData("IR2210 序列号为空"))
+                        failIdentity(with: BluetoothError.invalidData("IR2210 序列号为空"))
                         return
                     }
                     completeIdentity(
@@ -409,7 +411,7 @@ final class BluetoothManager: NSObject {
                     var values: [Double] = []
                     for group in 1 ... 64 {
                         guard let payload = irMeasurementGroups[group], payload.count == 8 else {
-                            failScan(with: .invalidData("IR2210 光谱分包不完整"))
+                            failScan(with: BluetoothError.invalidData("IR2210 光谱分包不完整"))
                             return
                         }
                         stride(from: 0, to: 8, by: 2).forEach { index in
