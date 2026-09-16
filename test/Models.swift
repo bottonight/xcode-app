@@ -118,17 +118,6 @@ struct MeasurementResult: Identifiable {
     let spectrum: [SpectrumPoint]
 }
 
-struct NIRBuiltinReference: Codable, Equatable {
-    let i: [Double]
-    let w: [Double]
-
-    var isValid: Bool {
-        i.count == 228 && w.count == 228
-            && i.allSatisfy(\.isFinite)
-            && w.allSatisfy(\.isFinite)
-    }
-}
-
 struct DevicePermissions: Equatable {
     let adminLevel: Int
     let canViewSpectrum: Bool

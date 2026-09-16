@@ -41,6 +41,9 @@ private enum BLEUUID {
     static let serialNumber = CBUUID(string: "2A25")
     static let systemID = CBUUID(string: "2A23")
 
+    static let nirCalibrationService = CBUUID(string: "53455204-444C-5020-4E49-52204E616E6F")
+    static let nirRequestBuiltin = CBUUID(string: "4348410F-444C-5020-4E49-52204E616E6F")
+    static let nirReturnBuiltin = CBUUID(string: "43484110-444C-5020-4E49-52204E616E6F")
     static let nirScanService = CBUUID(string: "53455206-444C-5020-4E49-52204E616E6F")
     static let nirStartScan = CBUUID(string: "4348411D-444C-5020-4E49-52204E616E6F")
     static let nirRequestScanData = CBUUID(string: "43484127-444C-5020-4E49-52204E616E6F")
@@ -54,6 +57,7 @@ private enum BLEUUID {
 private enum BluetoothOperation {
     case idle
     case nirIdentity
+    case nirBuiltin
     case irIdentity
     case nirWaitingForScanIndex
     case nirCollecting
@@ -122,12 +126,15 @@ final class BluetoothManager: NSObject {
     @ObservationIgnored private var pendingServiceCount = 0
     @ObservationIgnored private var connectionContinuation: CheckedContinuation<Void, Error>?
     @ObservationIgnored private var identityContinuation: CheckedContinuation<DeviceIdentity, Error>?
+    @ObservationIgnored private var builtinContinuation: CheckedContinuation<[Int], Error>?
     @ObservationIgnored private var scanContinuation: CheckedContinuation<ScanCapture, Error>?
     @ObservationIgnored private var timeoutTask: Task<Void, Never>?
     @ObservationIgnored private var operation: BluetoothOperation = .idle
     @ObservationIgnored private var nirSerialHex: String?
     @ObservationIgnored private var nirSystemHex: String?
     @ObservationIgnored private var nirExpectsSystemID = false
+    @ObservationIgnored private var nirBuiltinBuffer: [UInt8] = []
+    @ObservationIgnored private var nirBuiltinCache: [UUID: [Int]] = [:]
     @ObservationIgnored private var nirBuffer: [UInt8] = []
     @ObservationIgnored private var irAssembler = IRFrameAssembler()
     @ObservationIgnored private var irSNGroups: [Int: [UInt8]] = [:]
@@ -224,9 +231,45 @@ final class BluetoothManager: NSObject {
         }
     }
 
+    func readBuiltin(for device: NearbyDevice) async throws -> [Int] {
+        guard device.kind == .nir else {
+            throw BluetoothError.invalidData("IR2210 不使用 NIR 内置参考")
+        }
+        if let cached = nirBuiltinCache[device.id] {
+            return cached
+        }
+        guard connectedDevice?.id == device.id,
+              let peripheral = peripherals[device.id]
+        else { throw BluetoothError.deviceLost }
+        guard builtinContinuation == nil, operation == .idle else {
+            throw BluetoothError.connectionFailed("设备正在执行其他操作")
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            builtinContinuation = continuation
+            guard let request = characteristic(BLEUUID.nirRequestBuiltin, writable: true),
+                  characteristic(BLEUUID.nirReturnBuiltin, notifiable: true) != nil
+            else {
+                failBuiltin(with: BluetoothError.missingCharacteristic("NIR Built-in Reference"))
+                return
+            }
+            operation = .nirBuiltin
+            nirBuiltinBuffer.removeAll(keepingCapacity: true)
+            do {
+                try write(Data([0x00]), to: request, on: peripheral)
+                startTimeout(seconds: 15, operationName: "读取内置参考") { [weak self] in
+                    self?.failBuiltin(with: BluetoothError.timeout("读取内置参考"))
+                }
+            } catch {
+                failBuiltin(with: error)
+            }
+        }
+    }
+
     func disconnect() {
         timeoutTask?.cancel()
         if let device = connectedDevice, let peripheral = peripherals[device.id] {
+            nirBuiltinCache.removeValue(forKey: device.id)
             centralManager.cancelPeripheralConnection(peripheral)
         }
         failAllPending(with: .deviceLost)
@@ -335,6 +378,26 @@ final class BluetoothManager: NSObject {
 
     private func handleNIRNotification(_ data: Data, uuid: CBUUID, peripheral: CBPeripheral) {
         let bytes = [UInt8](data)
+        if uuid == BLEUUID.nirReturnBuiltin,
+           operation == .nirBuiltin,
+           let packetNumber = bytes.first {
+            if packetNumber != 0 {
+                nirBuiltinBuffer.append(contentsOf: bytes.dropFirst())
+            }
+            if packetNumber == 202 {
+                guard nirBuiltinBuffer.count == 3822, let device = connectedDevice else {
+                    failBuiltin(
+                        with: BluetoothError.invalidData(
+                            "NIR 内置参考长度为 \(nirBuiltinBuffer.count)，应为 3822"
+                        )
+                    )
+                    return
+                }
+                completeBuiltin(nirBuiltinBuffer.map(Int.init), for: device.id)
+            }
+            return
+        }
+
         if uuid == BLEUUID.nirStartScan,
            operation == .nirWaitingForScanIndex,
            bytes.first == 0xFF,
@@ -447,6 +510,14 @@ final class BluetoothManager: NSObject {
         identityContinuation = nil
     }
 
+    private func completeBuiltin(_ builtin: [Int], for deviceID: UUID) {
+        timeoutTask?.cancel()
+        nirBuiltinCache[deviceID] = builtin
+        operation = .idle
+        builtinContinuation?.resume(returning: builtin)
+        builtinContinuation = nil
+    }
+
     private func completeScan(_ capture: ScanCapture) {
         timeoutTask?.cancel()
         operation = .idle
@@ -467,6 +538,13 @@ final class BluetoothManager: NSObject {
         identityContinuation = nil
     }
 
+    private func failBuiltin(with error: Error) {
+        timeoutTask?.cancel()
+        operation = .idle
+        builtinContinuation?.resume(throwing: error)
+        builtinContinuation = nil
+    }
+
     private func failScan(with error: Error) {
         timeoutTask?.cancel()
         operation = .idle
@@ -477,6 +555,7 @@ final class BluetoothManager: NSObject {
     private func failAllPending(with error: BluetoothError) {
         failConnection(with: error)
         failIdentity(with: error)
+        failBuiltin(with: error)
         failScan(with: error)
     }
 
@@ -528,7 +607,11 @@ extension BluetoothManager: CBCentralManagerDelegate {
         peripheral.delegate = self
         let services = connectedDevice?.kind == .ir2210
             ? [BLEUUID.irService]
-            : [BLEUUID.deviceInformation, BLEUUID.nirScanService]
+            : [
+                BLEUUID.deviceInformation,
+                BLEUUID.nirCalibrationService,
+                BLEUUID.nirScanService
+            ]
         peripheral.discoverServices(services)
     }
 
@@ -547,6 +630,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
         error: Error?
     ) {
         if connectedDevice?.id == peripheral.identifier {
+            nirBuiltinCache.removeValue(forKey: peripheral.identifier)
             connectedDevice = nil
             connectedIdentity = nil
         }
@@ -651,7 +735,4 @@ extension BluetoothManager: MeasurementServicing {
         }
     }
 
-    func calibrate(device: NearbyDevice) async throws {
-        throw AppServiceError.unavailable("请先使用默认校准；手动校准接口将在下一步接入")
-    }
 }

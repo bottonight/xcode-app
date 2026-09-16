@@ -13,7 +13,7 @@ final class AppModel {
     var availableModes: [AnalysisMode] = []
     var pendingBinding = false
     var scanMode: ScanMode = .single
-    var calibrationMode: CalibrationMode = .manual
+    var calibrationMode: CalibrationMode = .builtIn
     var captures: [ScanCapture] = []
     var predictionResult: MeasurementResult?
     var managedDevices: [ManagedDevice] = []
@@ -36,7 +36,8 @@ final class AppModel {
             deviceAPI: LegacyDeviceAPI(configuration: configuration),
             measurementService: bluetooth,
             predictionService: LivePredictionService(
-                api: LegacyPredictionAPI(configuration: configuration, session: .shared)
+                api: LegacyPredictionAPI(configuration: configuration, session: .shared),
+                bluetooth: bluetooth
             ),
             sessionStore: KeychainSessionStore()
         )
@@ -192,9 +193,17 @@ final class AppModel {
     }
 
     func runCalibration() async {
-        guard let selectedDevice else { return }
+        guard let selectedDevice, let selectedIdentity else { return }
         await perform {
-            try await measurementService.calibrate(device: selectedDevice)
+            let capture = try await measurementService.scan(
+                device: selectedDevice,
+                calibration: .manual
+            )
+            try await predictionService.setReference(
+                capture: capture,
+                device: selectedDevice,
+                identity: selectedIdentity
+            )
             clearMeasurements()
             noticeMessage = "手动校准完成"
         }

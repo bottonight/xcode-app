@@ -319,14 +319,24 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
     }
 
     private func send<Response: Decodable>(_ request: URLRequest) async throws -> Response {
-        let (data, response) = try await urlSession.data(for: request)
-        guard let http = response as? HTTPURLResponse, 200 ..< 300 ~= http.statusCode else {
-            throw AppServiceError.unavailable("服务器连接失败")
-        }
         do {
+            let (data, response) = try await urlSession.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                throw AppServiceError.unavailable("服务器响应无效")
+            }
+            guard 200 ..< 300 ~= http.statusCode else {
+                let message = http.statusCode >= 500
+                    ? "服务器内部错误（HTTP \(http.statusCode)），请联系后台管理员"
+                    : "接口请求失败（HTTP \(http.statusCode)）"
+                throw AppServiceError.unavailable(message)
+            }
             return try JSONDecoder().decode(Response.self, from: data)
+        } catch let error as AppServiceError {
+            throw error
+        } catch let error as DecodingError {
+            throw AppServiceError.unavailable("服务器返回数据格式不正确：\(error.localizedDescription)")
         } catch {
-            throw AppServiceError.unavailable("服务器返回数据格式不正确")
+            throw AppServiceError.unavailable("无法连接服务器：\(error.localizedDescription)")
         }
     }
 }

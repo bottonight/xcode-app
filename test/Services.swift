@@ -36,7 +36,6 @@ protocol DeviceAPIServicing {
 @MainActor
 protocol MeasurementServicing {
     func scan(device: NearbyDevice, calibration: CalibrationMode) async throws -> ScanCapture
-    func calibrate(device: NearbyDevice) async throws
 }
 
 @MainActor
@@ -49,6 +48,11 @@ protocol PredictionServicing {
         calibration: CalibrationMode,
         session: UserSession
     ) async throws -> MeasurementResult
+    func setReference(
+        capture: ScanCapture,
+        device: NearbyDevice,
+        identity: DeviceIdentity
+    ) async throws
 }
 
 protocol SessionStoring {

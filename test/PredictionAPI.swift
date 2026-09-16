@@ -9,7 +9,7 @@ enum PredictionAPIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case let .invalidCapture(message): message
-        case .invalidBuiltin: "内置参考必须包含 228 个强度和 228 个波长"
+        case .invalidBuiltin: "NIR 内置参考必须是长度为 3822 的原始字节流"
         case .invalidResponse: "服务器返回了无法识别的数据"
         case let .server(message): message
         }
@@ -66,7 +66,7 @@ struct SaveWaveResponse: Decodable {
     }
 }
 
-enum APIStatus: Decodable {
+enum APIStatus: Decodable, Equatable {
     case success
     case failure
 
@@ -126,7 +126,7 @@ private struct NIRPredictionRequest: Encodable {
     let macNIR: String?
     let modelName: String
     let isBuiltin: Bool
-    let builtin: NIRBuiltinReference?
+    let builtin: [Int]?
     let openid: String
     let phoneNumber: String
     let serialNumber: String
@@ -160,6 +160,29 @@ private struct IRPredictionRequest: Encodable {
         case phoneNumber = "phone_number"
         case isDefaultReference = "is_default_ref"
         case isAdapter = "is_adapter"
+    }
+}
+
+private struct NIRReferenceRequest: Encodable {
+    let data: [Int]
+    let macNIR: String?
+    let serialNumber: String
+    let uuid: String?
+
+    enum CodingKeys: String, CodingKey {
+        case data, uuid
+        case macNIR = "mac_NIR"
+        case serialNumber = "serial_number"
+    }
+}
+
+private struct IRUserReferenceRequest: Encodable {
+    let intensity: [Double]
+    let serialNumber: String
+
+    enum CodingKeys: String, CodingKey {
+        case intensity
+        case serialNumber = "serial_number"
     }
 }
 
@@ -238,10 +261,13 @@ final class LegacyPredictionAPI {
         captures: [ScanCapture],
         identity: DeviceIdentity,
         mode: AnalysisMode,
-        builtin: NIRBuiltinReference?,
+        builtin: [Int]?,
         account: String
     ) async throws -> PredictionResponse {
-        if let builtin, !builtin.isValid { throw PredictionAPIError.invalidBuiltin }
+        if let builtin,
+           builtin.count != 3822 || !builtin.allSatisfy({ 0 ... 255 ~= $0 }) {
+            throw PredictionAPIError.invalidBuiltin
+        }
         let scans = try Self.nirScans(from: captures)
         let request = NIRPredictionRequest(
             data: scans.flatMap { $0 },
@@ -278,6 +304,32 @@ final class LegacyPredictionAPI {
             isAdapter: useAdapter
         )
         return try await post("/apps/PredictionPage/IR2210Prediction", body: request)
+    }
+
+    func setNIRReference(
+        capture: ScanCapture,
+        identity: DeviceIdentity
+    ) async throws -> SaveWaveResponse {
+        let data = try Self.nirScans(from: [capture])[0]
+        let request = NIRReferenceRequest(
+            data: data,
+            macNIR: identity.macNIR,
+            serialNumber: identity.serialNumber,
+            uuid: identity.uuid
+        )
+        return try await post("/apps/PredictionPage/SetReference", body: request)
+    }
+
+    func setIR2210UserReference(
+        capture: ScanCapture,
+        identity: DeviceIdentity
+    ) async throws -> SaveWaveResponse {
+        let intensity = try Self.irScans(from: [capture])[0]
+        let request = IRUserReferenceRequest(
+            intensity: intensity,
+            serialNumber: identity.serialNumber
+        )
+        return try await post("/apps/PredictionPage/SetIR2210UserRef", body: request)
     }
 
     func saveNIR(
@@ -399,14 +451,14 @@ final class LegacyPredictionAPI {
 @MainActor
 final class LivePredictionService: PredictionServicing {
     private let api: LegacyPredictionAPI
-    private let builtinProvider: (NearbyDevice) -> NIRBuiltinReference?
+    private let bluetooth: BluetoothManager
 
     init(
         api: LegacyPredictionAPI,
-        builtinProvider: @escaping (NearbyDevice) -> NIRBuiltinReference? = { _ in nil }
+        bluetooth: BluetoothManager
     ) {
         self.api = api
-        self.builtinProvider = builtinProvider
+        self.bluetooth = bluetooth
     }
 
     func predict(
@@ -420,15 +472,17 @@ final class LivePredictionService: PredictionServicing {
         let response: PredictionResponse
         switch device.kind {
         case .nir:
-            let builtin = builtinProvider(device)
-            if calibration == .builtIn, builtin == nil {
-                throw PredictionAPIError.invalidBuiltin
+            let builtin: [Int]?
+            if calibration == .builtIn {
+                builtin = try await bluetooth.readBuiltin(for: device)
+            } else {
+                builtin = nil
             }
             response = try await api.predictNIR(
                 captures: captures,
                 identity: identity,
                 mode: mode,
-                builtin: calibration == .builtIn ? builtin : nil,
+                builtin: builtin,
                 account: session.phoneNumber
             )
         case .ir2210:
@@ -452,6 +506,23 @@ final class LivePredictionService: PredictionServicing {
             summary: result,
             spectrum: Self.averagePreview(captures)
         )
+    }
+
+    func setReference(
+        capture: ScanCapture,
+        device: NearbyDevice,
+        identity: DeviceIdentity
+    ) async throws {
+        let response: SaveWaveResponse
+        switch device.kind {
+        case .nir:
+            response = try await api.setNIRReference(capture: capture, identity: identity)
+        case .ir2210:
+            response = try await api.setIR2210UserReference(capture: capture, identity: identity)
+        }
+        guard response.status == .success else {
+            throw PredictionAPIError.server(response.error ?? "设置参考光谱失败")
+        }
     }
 
     private static func averagePreview(_ captures: [ScanCapture]) -> [SpectrumPoint] {
