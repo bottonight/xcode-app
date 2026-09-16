@@ -5,15 +5,15 @@ import Observation
 @MainActor
 final class AppModel {
     var session: UserSession?
-    var selectedProject: AppProject = .nearInfrared
-    var isProjectSwitcherPresented = false
-    var homeRoute: HomeRoute = .discovery
+    var selectedProject: AppProject = .compositionAnalysis
+    var homeRoute: HomeRoute = .projects
     var selectedDevice: NearbyDevice?
+    var selectedIdentity: DeviceIdentity?
     var selectedMode: AnalysisMode?
     var availableModes: [AnalysisMode] = []
     var pendingBinding = false
     var scanMode: ScanMode = .single
-    var calibrationMode: CalibrationMode = .builtIn
+    var calibrationMode: CalibrationMode = .manual
     var captures: [ScanCapture] = []
     var predictionResult: MeasurementResult?
     var managedDevices: [ManagedDevice] = []
@@ -23,33 +23,33 @@ final class AppModel {
 
     let bluetooth: BluetoothManager
 
-    @ObservationIgnored private let authService: AuthServicing
     @ObservationIgnored private let deviceAPI: DeviceAPIServicing
     @ObservationIgnored private let measurementService: MeasurementServicing
     @ObservationIgnored private let predictionService: PredictionServicing
     @ObservationIgnored private let sessionStore: SessionStoring
 
     convenience init() {
+        let configuration = LegacyAPIConfiguration(baseURL: AppConfiguration.apiBaseURL)
+        let bluetooth = BluetoothManager()
         self.init(
-            bluetooth: BluetoothManager(),
-            authService: MockAuthService(),
-            deviceAPI: MockDeviceAPI(),
-            measurementService: MockMeasurementService(),
-            predictionService: MockPredictionService(),
+            bluetooth: bluetooth,
+            deviceAPI: LegacyDeviceAPI(configuration: configuration),
+            measurementService: bluetooth,
+            predictionService: LivePredictionService(
+                api: LegacyPredictionAPI(configuration: configuration, session: .shared)
+            ),
             sessionStore: KeychainSessionStore()
         )
     }
 
     init(
         bluetooth: BluetoothManager,
-        authService: AuthServicing,
         deviceAPI: DeviceAPIServicing,
         measurementService: MeasurementServicing,
         predictionService: PredictionServicing,
         sessionStore: SessionStoring
     ) {
         self.bluetooth = bluetooth
-        self.authService = authService
         self.deviceAPI = deviceAPI
         self.measurementService = measurementService
         self.predictionService = predictionService
@@ -74,38 +74,20 @@ final class AppModel {
             phoneNumber: validationPhone,
             username: validationName,
             authToken: "validation-only",
-            adminLevel: 2,
-            canViewSpectrum: true
+            adminLevel: 0,
+            canViewSpectrum: false
         )
         self.session = session
         sessionStore.save(session)
-    }
-
-    func sendCode(to phoneNumber: String) async -> Bool {
-        await perform {
-            try await authService.sendVerificationCode(to: phoneNumber)
-            noticeMessage = "验证码已发送；Mock 环境可输入任意 6 位数字"
-        }
-    }
-
-    func register(phoneNumber: String, username: String, code: String) async -> Bool {
-        await perform {
-            let session = try await authService.register(
-                phoneNumber: phoneNumber,
-                username: username,
-                code: code
-            )
-            self.session = session
-            sessionStore.save(session)
-        }
     }
 
     func signOut() {
         bluetooth.disconnect()
         sessionStore.clear()
         session = nil
-        homeRoute = .discovery
+        homeRoute = .projects
         selectedDevice = nil
+        selectedIdentity = nil
         selectedMode = nil
         captures = []
         predictionResult = nil
@@ -114,8 +96,7 @@ final class AppModel {
     func chooseProject(_ project: AppProject) {
         guard project.isAvailable else { return }
         selectedProject = project
-        isProjectSwitcherPresented = false
-        resetHome()
+        homeRoute = .discovery
     }
 
     func prepare(_ device: NearbyDevice) async {
@@ -123,10 +104,13 @@ final class AppModel {
         await perform {
             try await bluetooth.connect(to: device)
             selectedDevice = device
-            let availability = try await deviceAPI.availability(of: device, for: session)
-            switch availability {
+            let identity = try await bluetooth.readIdentity(for: device)
+            selectedIdentity = identity
+            let inspection = try await deviceAPI.inspect(device, identity: identity, session: session)
+            switch inspection.availability {
             case .available:
-                try await loadModes(for: device, session: session)
+                availableModes = inspection.modes
+                homeRoute = .modeSelection
             case .unbound:
                 pendingBinding = true
             case let .blocked(message):
@@ -136,11 +120,15 @@ final class AppModel {
     }
 
     func bindSelectedDevice() async {
-        guard let session, let selectedDevice else { return }
+        guard let session, let selectedDevice, let selectedIdentity else { return }
         await perform {
-            try await deviceAPI.bind(selectedDevice, for: session)
+            availableModes = try await deviceAPI.bind(
+                selectedDevice,
+                identity: selectedIdentity,
+                session: session
+            )
             pendingBinding = false
-            try await loadModes(for: selectedDevice, session: session)
+            homeRoute = .modeSelection
             noticeMessage = "设备绑定成功"
         }
     }
@@ -153,7 +141,7 @@ final class AppModel {
     }
 
     func runScan() async {
-        guard let session, let selectedDevice, let selectedMode else { return }
+        guard let session, let selectedDevice, let selectedIdentity, let selectedMode else { return }
         guard scanMode == .single || captures.count < 9 else {
             errorMessage = "多次扫描最多保存 9 次"
             return
@@ -168,6 +156,7 @@ final class AppModel {
                 predictionResult = try await predictionService.predict(
                     captures: captures,
                     device: selectedDevice,
+                    identity: selectedIdentity,
                     mode: selectedMode,
                     calibration: calibrationMode,
                     session: session
@@ -183,6 +172,7 @@ final class AppModel {
         guard scanMode == .multiple,
               let session,
               let selectedDevice,
+              let selectedIdentity,
               let selectedMode,
               captures.count >= 2
         else {
@@ -193,6 +183,7 @@ final class AppModel {
             predictionResult = try await predictionService.predict(
                 captures: captures,
                 device: selectedDevice,
+                identity: selectedIdentity,
                 mode: selectedMode,
                 calibration: calibrationMode,
                 session: session
@@ -243,8 +234,9 @@ final class AppModel {
 
     func resetHome() {
         bluetooth.disconnect()
-        homeRoute = .discovery
+        homeRoute = .projects
         selectedDevice = nil
+        selectedIdentity = nil
         selectedMode = nil
         availableModes = []
         pendingBinding = false
@@ -252,9 +244,15 @@ final class AppModel {
         predictionResult = nil
     }
 
-    private func loadModes(for device: NearbyDevice, session: UserSession) async throws {
-        availableModes = try await deviceAPI.modes(for: device, session: session)
-        homeRoute = .modeSelection
+    func returnToDiscovery() {
+        bluetooth.disconnect()
+        homeRoute = .discovery
+        selectedDevice = nil
+        selectedIdentity = nil
+        selectedMode = nil
+        availableModes = []
+        pendingBinding = false
+        clearMeasurements()
     }
 
     @discardableResult

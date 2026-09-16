@@ -16,13 +16,6 @@ enum PredictionAPIError: LocalizedError {
     }
 }
 
-struct DeviceIdentity {
-    let name: String
-    let serialNumber: String
-    let macNIR: String?
-    let uuid: String?
-}
-
 struct PredictionResponse: Decodable {
     let result: String?
     let preID: String?
@@ -234,7 +227,7 @@ final class LegacyPredictionAPI {
     private let session: URLSession
 
     init(
-        configuration: LegacyAPIConfiguration = LegacyAPIConfiguration(),
+        configuration: LegacyAPIConfiguration,
         session: URLSession = .shared
     ) {
         self.configuration = configuration
@@ -259,7 +252,7 @@ final class LegacyPredictionAPI {
             openid: "",
             phoneNumber: account,
             serialNumber: identity.serialNumber,
-            viewSpectrum: mode.supportsSpectrum,
+            viewSpectrum: false,
             uuid: identity.uuid
         )
         return try await post("/apps/PredictionPage/Prediction", body: request)
@@ -406,30 +399,24 @@ final class LegacyPredictionAPI {
 @MainActor
 final class LivePredictionService: PredictionServicing {
     private let api: LegacyPredictionAPI
-    private let identityProvider: (NearbyDevice) -> DeviceIdentity?
     private let builtinProvider: (NearbyDevice) -> NIRBuiltinReference?
 
     init(
         api: LegacyPredictionAPI,
-        identityProvider: @escaping (NearbyDevice) -> DeviceIdentity?,
         builtinProvider: @escaping (NearbyDevice) -> NIRBuiltinReference? = { _ in nil }
     ) {
         self.api = api
-        self.identityProvider = identityProvider
         self.builtinProvider = builtinProvider
     }
 
     func predict(
         captures: [ScanCapture],
         device: NearbyDevice,
+        identity: DeviceIdentity,
         mode: AnalysisMode,
         calibration: CalibrationMode,
         session: UserSession
     ) async throws -> MeasurementResult {
-        guard let identity = identityProvider(device) else {
-            throw PredictionAPIError.invalidCapture("尚未读取到设备序列号")
-        }
-
         let response: PredictionResponse
         switch device.kind {
         case .nir:

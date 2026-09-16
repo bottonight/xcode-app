@@ -39,7 +39,7 @@ private struct MainShellView: View {
         TabView {
             HomeFlowView()
                 .tabItem {
-                    Label("检测", systemImage: "dot.radiowaves.left.and.right")
+                    Label("首页", systemImage: "house")
                 }
 
             DeviceManagementView()
@@ -53,14 +53,6 @@ private struct MainShellView: View {
                 }
         }
         .tint(FabricTheme.indigo)
-        .sheet(
-            isPresented: Binding(
-                get: { app.isProjectSwitcherPresented },
-                set: { app.isProjectSwitcherPresented = $0 }
-            )
-        ) {
-            ProjectSwitcherSheet()
-        }
         .alert("提示", isPresented: hasMessage) {
             Button("知道了", role: .cancel) {}
         } message: {

@@ -211,7 +211,6 @@ struct AccountView: View {
                 }
                 Section("权限") {
                     LabeledContent("管理员等级", value: "\(app.permissions.adminLevel)")
-                    LabeledContent("谱线查看", value: app.permissions.canViewSpectrum ? "已授权" : "未授权")
                 }
                 Section {
                     Button("退出登录", role: .destructive) {

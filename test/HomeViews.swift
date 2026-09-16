@@ -1,4 +1,3 @@
-import Charts
 import SwiftUI
 
 struct HomeFlowView: View {
@@ -8,6 +7,8 @@ struct HomeFlowView: View {
         NavigationStack {
             Group {
                 switch app.homeRoute {
+                case .projects:
+                    ProjectGridView()
                 case .discovery:
                     DeviceDiscoveryView()
                 case .modeSelection:
@@ -18,17 +19,24 @@ struct HomeFlowView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    if app.homeRoute == .discovery {
-                        ProjectSwitcherButton(project: app.selectedProject) {
-                            app.isProjectSwitcherPresented = true
-                        }
-                    } else {
+                    switch app.homeRoute {
+                    case .projects:
+                        EmptyView()
+                    case .discovery:
                         Button {
-                            if app.homeRoute == .workbench {
-                                app.homeRoute = .modeSelection
-                            } else {
-                                app.resetHome()
-                            }
+                            app.resetHome()
+                        } label: {
+                            Label("返回", systemImage: "chevron.left")
+                        }
+                    case .modeSelection:
+                        Button {
+                            app.returnToDiscovery()
+                        } label: {
+                            Label("返回", systemImage: "chevron.left")
+                        }
+                    case .workbench:
+                        Button {
+                            app.homeRoute = .modeSelection
                         } label: {
                             Label("返回", systemImage: "chevron.left")
                         }
@@ -36,6 +44,45 @@ struct HomeFlowView: View {
                 }
             }
         }
+    }
+}
+
+struct ProjectGridView: View {
+    @Environment(AppModel.self) private var app
+    private let columns = [
+        GridItem(.flexible(), spacing: 14),
+        GridItem(.flexible(), spacing: 14)
+    ]
+
+    var body: some View {
+        ZStack {
+            FabricTheme.background.ignoresSafeArea()
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 14) {
+                    ForEach(AppProject.allCases) { project in
+                        Button {
+                            app.chooseProject(project)
+                        } label: {
+                            VStack(spacing: 14) {
+                                Image(systemName: project.systemImage)
+                                    .font(.system(size: 34, weight: .medium))
+                                    .foregroundStyle(project.isAvailable ? FabricTheme.indigo : .secondary)
+                                Text(project.name)
+                                    .font(.headline)
+                                    .foregroundStyle(project.isAvailable ? .primary : .secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 142)
+                            .brandCard()
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!project.isAvailable)
+                    }
+                }
+                .padding()
+            }
+        }
+        .navigationTitle("首页")
     }
 }
 
@@ -55,8 +102,6 @@ struct DeviceDiscoveryView: View {
                     } actions: {
                         Button("重新扫描") { app.bluetooth.startScanning() }
                             .buttonStyle(.borderedProminent)
-                        Button("载入演示设备") { app.bluetooth.loadDemoDevices() }
-                            .buttonStyle(.bordered)
                     }
                 } else {
                     List(app.bluetooth.nearbyDevices) { device in
@@ -207,7 +252,6 @@ struct ModeSelectionView: View {
     }
 
     private func icon(for mode: AnalysisMode) -> String {
-        if mode.supportsSpectrum { return "waveform.path.ecg" }
         return "sparkles"
     }
 }
@@ -228,10 +272,6 @@ struct MeasurementWorkbenchView: View {
                     scanPanel
                     if let latestResult {
                         resultCard(latestResult)
-                        if app.selectedMode?.supportsSpectrum == true,
-                           app.permissions.canViewSpectrum {
-                            spectrumCard(latestResult)
-                        }
                     }
                     permissionActions
                 }
@@ -255,12 +295,9 @@ struct MeasurementWorkbenchView: View {
                     .foregroundStyle(.green)
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 5) {
-                Label("86%", systemImage: "battery.75percent")
-                Text(app.selectedDevice?.kind.rawValue ?? "")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Text(app.selectedDevice?.kind.rawValue ?? "")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .brandCard()
     }
@@ -380,24 +417,6 @@ struct MeasurementWorkbenchView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .brandCard()
-    }
-
-    private func spectrumCard(_ result: MeasurementResult) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("光谱曲线")
-                .font(.headline)
-            Chart(result.spectrum) { point in
-                LineMark(
-                    x: .value("波段", point.index),
-                    y: .value("强度", point.intensity)
-                )
-                .interpolationMethod(.catmullRom)
-                .foregroundStyle(FabricTheme.indigo.gradient)
-            }
-            .chartXAxis(.hidden)
-            .frame(height: 190)
-        }
         .brandCard()
     }
 

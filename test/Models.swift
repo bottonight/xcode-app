@@ -1,15 +1,24 @@
 import Foundation
 
 enum AppProject: String, CaseIterable, Identifiable {
-    case nearInfrared = "近红外检测"
-    case reserved = "更多项目"
+    case compositionAnalysis
+    case reservedTwo
+    case reservedThree
+    case reservedFour
 
     var id: String { rawValue }
-    var isAvailable: Bool { self == .nearInfrared }
-    var subtitle: String {
+    var isAvailable: Bool { self == .compositionAnalysis }
+
+    var name: String {
+        isAvailable ? "成分分析" : "敬请期待"
+    }
+
+    var systemImage: String {
         switch self {
-        case .nearInfrared: "NIR 与 IR2210 光谱分析"
-        case .reserved: "已预留项目接入能力"
+        case .compositionAnalysis: "waveform.path.ecg"
+        case .reservedTwo: "camera.macro"
+        case .reservedThree: "chart.xyaxis.line"
+        case .reservedFour: "square.grid.3x3"
         }
     }
 }
@@ -36,10 +45,23 @@ struct NearbyDevice: Identifiable, Hashable {
     }
 }
 
+struct DeviceIdentity: Equatable {
+    let name: String
+    let serialNumber: String
+    let macNIR: String?
+    let uuid: String?
+}
+
 enum DeviceAvailability: Equatable {
     case available
     case unbound
     case blocked(String)
+}
+
+struct DeviceInspection {
+    let availability: DeviceAvailability
+    let modes: [AnalysisMode]
+    let shouldInitialize: Bool
 }
 
 struct UserSession: Codable, Equatable {
@@ -55,8 +77,6 @@ struct AnalysisMode: Identifiable, Hashable, Codable {
     let id: String
     let name: String
     let monthlyUseCount: Int
-
-    var supportsSpectrum: Bool { id == "LINE" }
 }
 
 enum ScanMode: String, CaseIterable, Identifiable {
@@ -132,6 +152,7 @@ struct SharedUser: Identifiable, Hashable {
 }
 
 enum HomeRoute {
+    case projects
     case discovery
     case modeSelection
     case workbench
