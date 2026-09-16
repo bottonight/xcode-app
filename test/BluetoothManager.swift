@@ -121,8 +121,9 @@ final class BluetoothManager: NSObject {
     private(set) var connectedDevice: NearbyDevice?
     private(set) var connectedIdentity: DeviceIdentity?
 
-    @ObservationIgnored var onHardwareScan: ((ScanCapture) -> Void)?
-    @ObservationIgnored var onHardwareScanError: ((Error) -> Void)?
+    @ObservationIgnored var onHardwareScanStarted: (@MainActor () -> Void)?
+    @ObservationIgnored var onHardwareScan: (@MainActor (ScanCapture) -> Void)?
+    @ObservationIgnored var onHardwareScanError: (@MainActor (Error) -> Void)?
     @ObservationIgnored private var centralManager: CBCentralManager!
     @ObservationIgnored private var peripherals: [UUID: CBPeripheral] = [:]
     @ObservationIgnored private var characteristics: [String: [CBCharacteristic]] = [:]
@@ -412,6 +413,9 @@ final class BluetoothManager: NSObject {
             let initiatedByHardware = operation == .idle
             operation = initiatedByHardware ? .nirHardwareCollecting : .nirCollecting
             nirBuffer.removeAll(keepingCapacity: true)
+            if initiatedByHardware {
+                onHardwareScanStarted?()
+            }
             do {
                 try write(Data(bytes[1 ... 4]), to: request, on: peripheral)
                 startTimeout(seconds: 15, operationName: "读取 NIR 扫描数据") { [weak self] in

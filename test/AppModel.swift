@@ -27,6 +27,7 @@ final class AppModel {
     @ObservationIgnored private let measurementService: MeasurementServicing
     @ObservationIgnored private let predictionService: PredictionServicing
     @ObservationIgnored private let sessionStore: SessionStoring
+    @ObservationIgnored private var hardwareScanPending = false
 
     convenience init() {
         let configuration = LegacyAPIConfiguration(baseURL: AppConfiguration.apiBaseURL)
@@ -56,16 +57,16 @@ final class AppModel {
         self.predictionService = predictionService
         self.sessionStore = sessionStore
         session = sessionStore.load()
+        bluetooth.onHardwareScanStarted = { [weak self] in
+            self?.beginHardwareScan()
+        }
         bluetooth.onHardwareScan = { [weak self] capture in
             Task { @MainActor [weak self] in
                 await self?.receiveHardwareScan(capture)
             }
         }
         bluetooth.onHardwareScanError = { [weak self] error in
-            Task { @MainActor [weak self] in
-                guard let self, case .workbench = self.homeRoute else { return }
-                self.errorMessage = error.localizedDescription
-            }
+            self?.receiveHardwareScanError(error)
         }
     }
 
@@ -268,13 +269,8 @@ final class AppModel {
         clearMeasurements()
     }
 
-    private func receiveHardwareScan(_ capture: ScanCapture) async {
-        guard case .workbench = homeRoute,
-              let session,
-              let selectedDevice,
-              let selectedIdentity,
-              let selectedMode
-        else { return }
+    private func beginHardwareScan() {
+        guard case .workbench = homeRoute else { return }
         guard !isBusy else {
             errorMessage = "当前任务尚未完成，请稍后再按设备扫描键"
             return
@@ -283,7 +279,24 @@ final class AppModel {
             errorMessage = "多次扫描最多保存 9 次"
             return
         }
-        await perform {
+        hardwareScanPending = true
+        isBusy = true
+        errorMessage = nil
+    }
+
+    private func receiveHardwareScan(_ capture: ScanCapture) async {
+        guard hardwareScanPending else { return }
+        defer {
+            hardwareScanPending = false
+            isBusy = false
+        }
+        guard case .workbench = homeRoute,
+              let session,
+              let selectedDevice,
+              let selectedIdentity,
+              let selectedMode
+        else { return }
+        do {
             try await acceptCapture(
                 capture,
                 session: session,
@@ -291,6 +304,18 @@ final class AppModel {
                 identity: selectedIdentity,
                 mode: selectedMode
             )
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func receiveHardwareScanError(_ error: Error) {
+        if hardwareScanPending {
+            hardwareScanPending = false
+            isBusy = false
+        }
+        if case .workbench = homeRoute {
+            errorMessage = error.localizedDescription
         }
     }
 

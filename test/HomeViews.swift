@@ -374,7 +374,7 @@ struct MeasurementWorkbenchView: View {
             Button {
                 Task { await app.runScan() }
             } label: {
-                Text(app.isBusy ? "正在采集…" : "开始扫描")
+                Text(app.isBusy ? "正在处理…" : "开始扫描")
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 5)
