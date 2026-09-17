@@ -26,14 +26,16 @@ private struct RegisterRequest: Encodable {
     let openid: String
     let username: String
     let password: String
+    let verificationCode: String
     let company: String
     let industry: String
     let phoneNumber: String?
     let email: String?
 
     enum CodingKeys: String, CodingKey {
-        case openid, username, password, company, industry, email
+        case openid, username, password, company, industry, email, code
         case phoneNumber = "phone_num"
+        case verificationCode = "verification_code"
     }
 
     func encode(to encoder: Encoder) throws {
@@ -41,11 +43,37 @@ private struct RegisterRequest: Encodable {
         try container.encode(openid, forKey: .openid)
         try container.encode(username, forKey: .username)
         try container.encode(password, forKey: .password)
+        try container.encode(verificationCode, forKey: .verificationCode)
+        try container.encode(verificationCode, forKey: .code)
         try container.encode(company, forKey: .company)
         try container.encode(industry, forKey: .industry)
         try container.encodeIfPresent(phoneNumber, forKey: .phoneNumber)
         try container.encodeIfPresent(email, forKey: .email)
     }
+}
+
+private struct PhoneCodeRequest: Encodable {
+    let phoneNumber: String
+
+    enum CodingKeys: String, CodingKey {
+        case phoneNumber = "phone_number"
+        case phoneNum = "phone_num"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(phoneNumber, forKey: .phoneNumber)
+        try container.encode(phoneNumber, forKey: .phoneNum)
+    }
+}
+
+private struct EmailCodeRequest: Encodable {
+    let email: String
+}
+
+private struct StatusOnlyResponse: Decodable {
+    let status: Bool?
+    let error: String?
 }
 
 private struct AuthUserDetail: Decodable {
@@ -175,10 +203,30 @@ final class LegacyAuthAPI: AuthServicing {
         )
     }
 
+    func sendVerificationCode(account: AccountIdentifier) async throws {
+        let response: StatusOnlyResponse
+        switch account {
+        case let .phone(phoneNumber):
+            response = try await post(
+                "/apps/LoginPage/getPhoneVC",
+                body: PhoneCodeRequest(phoneNumber: phoneNumber)
+            )
+        case let .email(email):
+            response = try await post(
+                "/apps/LoginPage/getEmailVC",
+                body: EmailCodeRequest(email: email)
+            )
+        }
+        guard response.status != false else {
+            throw AppServiceError.unavailable(response.error ?? "验证码发送失败")
+        }
+    }
+
     func register(
         username: String,
         account: AccountIdentifier,
         password: String,
+        verificationCode: String,
         company: String,
         industry: String
     ) async throws -> UserSession {
@@ -188,6 +236,7 @@ final class LegacyAuthAPI: AuthServicing {
                 openid: "",
                 username: username,
                 password: password,
+                verificationCode: verificationCode,
                 company: company,
                 industry: industry,
                 phoneNumber: account.phoneNumber,

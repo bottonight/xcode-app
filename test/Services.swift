@@ -15,7 +15,7 @@ enum AppServiceError: LocalizedError {
         case .invalidEmail: "请输入正确的邮箱"
         case .invalidPassword: "请输入至少 6 位密码"
         case .unauthorized: "登录已过期，请重新登录"
-        case .invalidCode: "请输入 6 位验证码"
+        case .invalidCode: "请输入验证码"
         case let .unavailable(message): message
         }
     }
@@ -24,10 +24,12 @@ enum AppServiceError: LocalizedError {
 @MainActor
 protocol AuthServicing {
     func login(account: AccountIdentifier, password: String) async throws -> UserSession
+    func sendVerificationCode(account: AccountIdentifier) async throws
     func register(
         username: String,
         account: AccountIdentifier,
         password: String,
+        verificationCode: String,
         company: String,
         industry: String
     ) async throws -> UserSession

@@ -105,16 +105,25 @@ final class AppModel {
         }
     }
 
+    func sendVerificationCode(account: String) async -> Bool {
+        await perform(title: "正在发送验证码") {
+            let identifier = try AccountIdentifier.parse(account, allowsPhone: AppRegion.isMainlandChina)
+            try await authAPI.sendVerificationCode(account: identifier)
+        }
+    }
+
     func register(
         username: String,
         account: String,
         password: String,
         confirmPassword: String,
+        verificationCode: String,
         company: String,
         industry: String
     ) async {
         await perform(title: "正在注册") {
             let name = username.trimmingCharacters(in: .whitespacesAndNewlines)
+            let code = verificationCode.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else {
                 throw AppServiceError.unavailable("请输入用户名")
             }
@@ -122,12 +131,14 @@ final class AppModel {
             guard password == confirmPassword else {
                 throw AppServiceError.unavailable("两次输入的密码不一致")
             }
+            guard code.count >= 4 else { throw AppServiceError.invalidCode }
             let identifier = try AccountIdentifier.parse(account, allowsPhone: AppRegion.isMainlandChina)
             try applyAuthenticatedSession(
                 await authAPI.register(
                     username: name,
                     account: identifier,
                     password: password,
+                    verificationCode: code,
                     company: company.trimmingCharacters(in: .whitespacesAndNewlines),
                     industry: industry
                 )

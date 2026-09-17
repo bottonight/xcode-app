@@ -7,11 +7,11 @@
 **账号约定**：
 - `t_users` 主键为自增 `user_id`；`openid` 可为空。
 - 涉及用户标识的接口，`phone_number` / `phone_num` 与 `email` **二选一**（同时传时优先手机号）。手机号写入 `phone_num`，邮箱写入 `email`。
-- 注册必填 `password`，库中存哈希；手机号/邮箱登录需校验密码。仅微信 `openid` 登录可不传密码。
+- 注册必填 `password` 和验证码；库中存密码哈希。有手机号则校验短信验证码，否则校验邮箱验证码。手机号/邮箱登录需校验密码。仅微信 `openid` 登录可不传密码。
 - `t_devices_users` 通过 `user_id` 关联用户，不再存储手机号。
 
 **鉴权约定**：
-- `/login`、`/register`、`/getopenid`、`/getPhoneNumber`、`/decode`、`/GetNewNotice` 无需 token。
+- `/login`、`/register`、`/getPhoneVC`、`/getEmailVC`、`/getopenid`、`/getPhoneNumber`、`/decode`、`/GetNewNotice` 无需 token。
 - 其余接口需登录。请求头带 `Authorization: Bearer <token>`，或 Cookie `token`。
 - 登录/注册成功返回 `token`（有效期 7 天）。登录成功即可，不要求管理员权限。
 - 未登录或 token 无效返回 HTTP 401，`{"status": false, "error": "..."}`。
@@ -42,23 +42,46 @@
 
 ## 3. /register
 - **方法**: POST
-- **描述**: 注册；若用户已存在且密码正确则返回用户信息与 token
+- **描述**: 注册；服务端校验短信/邮箱验证码通过后才建号。若用户已存在且密码正确则返回用户信息与 token
 - **参数** (json):
   - openid（可空）
   - username
   - phone_num **或** email（二选一，必填；分别写入对应字段）
   - password（必填）
+  - verification_code / code（必填；有手机号则校验短信验证码，否则校验邮箱验证码）
   - company
   - industry
 - **返回**: JSON 字符串
   - UserDetail: 用户信息（不含 password）
   - is_exist: `0` 新注册 / `1` 已存在
   - token: JWT
-  - status / error（未提供手机号、邮箱或密码，或用户已存在但密码不正确）
+  - status / error（未提供手机号、邮箱、密码或验证码，验证码错误/过期，或用户已存在但密码不正确）
 
 ---
 
-## 4. /getopenid
+## 4. /getPhoneVC
+- **方法**: POST
+- **描述**: 向手机号发送短信验证码（有效期 5 分钟，60 秒内不可重复发送）。校验在 `/register` 中完成，不单独暴露校验接口
+- **参数** (json):
+  - phone_number / phone_num（必填）
+- **返回**:
+  - status: `true` / `false`
+  - error（失败时，如未提供手机号 / 发送失败 / 发送过于频繁）
+
+---
+
+## 5. /getEmailVC
+- **方法**: POST
+- **描述**: 向邮箱发送验证码（有效期 5 分钟，60 秒内不可重复发送）。校验在 `/register` 中完成，不单独暴露校验接口
+- **参数** (json):
+  - email（必填）
+- **返回**:
+  - status: `true` / `false`
+  - error（失败时，如未提供邮箱 / 发送失败 / 发送过于频繁）
+
+---
+
+## 6. /getopenid
 - **方法**: GET
 - **描述**: 用微信 `js_code` 换取 session（含 openid）
 - **参数** (query):
@@ -67,7 +90,7 @@
 
 ---
 
-## 5. /getPhoneNumber
+## 7. /getPhoneNumber
 - **方法**: GET
 - **描述**: 用微信手机号授权 code 换取手机号
 - **参数** (query):
@@ -79,7 +102,7 @@
 
 ---
 
-## 6. /decode
+## 8. /decode
 - **方法**: POST
 - **描述**: 解密微信加密数据
 - **参数** (json):
@@ -91,7 +114,7 @@
 
 ---
 
-## 7. /getDevices
+## 9. /getDevices
 - **方法**: GET
 - **描述**: 按账号查询已绑定/分享的设备列表
 - **参数** (query):
@@ -104,7 +127,7 @@
 
 ---
 
-## 8. /getPermission
+## 10. /getPermission
 - **方法**: GET
 - **描述**: 查询用户权限配置
 - **参数** (query):
@@ -116,7 +139,7 @@
 
 ---
 
-## 9. /shareDevice
+## 11. /shareDevice
 - **方法**: POST
 - **描述**: 将设备分享给其他用户
 - **参数** (json):
@@ -131,7 +154,7 @@
 
 ---
 
-## 10. /deleteSharedDevice
+## 12. /deleteSharedDevice
 - **方法**: POST
 - **描述**: 取消设备分享
 - **参数** (json):
@@ -146,7 +169,7 @@
 
 ---
 
-## 11. /getSharedUser
+## 13. /getSharedUser
 - **方法**: POST
 - **描述**: 查询设备已分享用户列表
 - **参数** (json):
@@ -160,7 +183,7 @@
 
 ---
 
-## 12. /getDeviceInfo
+## 14. /getDeviceInfo
 - **方法**: POST
 - **描述**: 查询普通 NIR 设备状态与可用模型权限；管理员可自动注册未入库设备
 - **参数** (json):
@@ -179,7 +202,7 @@
 
 ---
 
-## 13. /getIR2210DeviceInfo
+## 15. /getIR2210DeviceInfo
 - **方法**: POST
 - **描述**: 查询 IR2210 设备状态与权限；管理员可自动注册
 - **参数** (json):
@@ -195,7 +218,7 @@
 
 ---
 
-## 14. /bindDevice
+## 16. /bindDevice
 - **方法**: POST
 - **描述**: 绑定设备到当前用户（设为 owner）
 - **参数** (json):
@@ -210,7 +233,7 @@
 
 ---
 
-## 15. /GetNewNotice
+## 17. /GetNewNotice
 - **方法**: POST
 - **描述**: 读取服务端公告文案（`notice_text.json`）
 - **参数**: 无
