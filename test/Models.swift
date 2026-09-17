@@ -67,10 +67,106 @@ struct DeviceInspection {
 struct UserSession: Codable, Equatable {
     let userID: String
     let phoneNumber: String
+    let email: String
     let username: String
     let authToken: String
     let adminLevel: Int
     let canViewSpectrum: Bool
+
+    var displayAccount: String {
+        phoneNumber.isEmpty ? email : phoneNumber
+    }
+
+    var requestPhoneNumber: String? {
+        phoneNumber.isEmpty ? nil : phoneNumber
+    }
+
+    var requestEmail: String? {
+        requestPhoneNumber == nil && !email.isEmpty ? email : nil
+    }
+
+    var accountQueryItem: URLQueryItem {
+        if let phone = requestPhoneNumber {
+            return URLQueryItem(name: "phone_number", value: phone)
+        }
+        return URLQueryItem(name: "email", value: email)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case userID, phoneNumber, email, username, authToken, adminLevel, canViewSpectrum
+    }
+
+    init(
+        userID: String,
+        phoneNumber: String,
+        email: String,
+        username: String,
+        authToken: String,
+        adminLevel: Int,
+        canViewSpectrum: Bool
+    ) {
+        self.userID = userID
+        self.phoneNumber = phoneNumber
+        self.email = email
+        self.username = username
+        self.authToken = authToken
+        self.adminLevel = adminLevel
+        self.canViewSpectrum = canViewSpectrum
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        userID = try values.decode(String.self, forKey: .userID)
+        phoneNumber = try values.decode(String.self, forKey: .phoneNumber)
+        email = try values.decodeIfPresent(String.self, forKey: .email) ?? ""
+        username = try values.decode(String.self, forKey: .username)
+        authToken = try values.decode(String.self, forKey: .authToken)
+        adminLevel = try values.decode(Int.self, forKey: .adminLevel)
+        canViewSpectrum = try values.decode(Bool.self, forKey: .canViewSpectrum)
+    }
+}
+
+enum AccountIdentifier: Equatable {
+    case phone(String)
+    case email(String)
+
+    var phoneNumber: String? {
+        if case let .phone(value) = self { return value }
+        return nil
+    }
+
+    var email: String? {
+        if case let .email(value) = self { return value }
+        return nil
+    }
+
+    var value: String {
+        switch self {
+        case let .phone(value), let .email(value): value
+        }
+    }
+
+    static func parse(_ raw: String, allowsPhone: Bool) throws -> AccountIdentifier {
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.contains("@") {
+            guard value.contains("."), value.count >= 5 else {
+                throw AppServiceError.invalidEmail
+            }
+            return .email(value.lowercased())
+        }
+        guard allowsPhone else { throw AppServiceError.invalidEmail }
+        let digits = value.filter(\.isNumber)
+        guard digits.count == 11, digits.hasPrefix("1") else {
+            throw AppServiceError.invalidPhone
+        }
+        return .phone(digits)
+    }
+}
+
+enum AppRegion {
+    static var isMainlandChina: Bool {
+        Locale.current.region?.identifier.uppercased() == "CN"
+    }
 }
 
 struct AnalysisMode: Identifiable, Hashable, Codable {

@@ -5,8 +5,16 @@
 完整路径示例：`/apps/LoginPage/login`
 
 **账号约定**：
-- 涉及用户标识的接口，`phone_number` / `phone_num` 与 `email` **二选一**（同时传时优先手机号）。账号标识仍写入原手机号字段，可为手机号或邮箱。
-- `openid` 可为空。无微信 openid 时，用手机号或邮箱作为用户主键并登录。
+- `t_users` 主键为自增 `user_id`；`openid` 可为空。
+- 涉及用户标识的接口，`phone_number` / `phone_num` 与 `email` **二选一**（同时传时优先手机号）。手机号写入 `phone_num`，邮箱写入 `email`。
+- 注册必填 `password`，库中存哈希；手机号/邮箱登录需校验密码。仅微信 `openid` 登录可不传密码。
+- `t_devices_users` 通过 `user_id` 关联用户，不再存储手机号。
+
+**鉴权约定**：
+- `/login`、`/register`、`/getopenid`、`/getPhoneNumber`、`/decode`、`/GetNewNotice` 无需 token。
+- 其余接口需登录。请求头带 `Authorization: Bearer <token>`，或 Cookie `token`。
+- 登录/注册成功返回 `token`（有效期 7 天）。登录成功即可，不要求管理员权限。
+- 未登录或 token 无效返回 HTTP 401，`{"status": false, "error": "..."}`。
 
 ---
 
@@ -24,27 +32,29 @@
 - **参数** (json):
   - openid: 微信 openid（可空）
   - phone_number / phone_num **或** email：openid 为空时必填其一
+  - password：手机号/邮箱登录时必填；仅 openid 登录时可空。写入库的是哈希，不是明文
 - **返回**:
   - status: `true` / `false`
-  - permission / phone_number / username / is_admin（成功时；`phone_number` 为手机号或邮箱）
-  - error（失败时，如用户未注册 / 未提供账号）
+  - permission / phone_number / email / username / is_admin / user_id / token（成功时）
+  - error（失败时，如用户未注册 / 未提供账号 / 密码错误）
 
 ---
 
 ## 3. /register
 - **方法**: POST
-- **描述**: 注册；若用户已存在则直接返回用户信息与 token
+- **描述**: 注册；若用户已存在且密码正确则返回用户信息与 token
 - **参数** (json):
-  - openid（可空；为空时用手机号或邮箱作为主键）
+  - openid（可空）
   - username
-  - phone_num **或** email（二选一，必填）
+  - phone_num **或** email（二选一，必填；分别写入对应字段）
+  - password（必填）
   - company
   - industry
 - **返回**: JSON 字符串
-  - UserDetail: 用户信息
-  - is_exist: `1`
+  - UserDetail: 用户信息（不含 password）
+  - is_exist: `0` 新注册 / `1` 已存在
   - token: JWT
-  - status / error（未提供手机号或邮箱时）
+  - status / error（未提供手机号、邮箱或密码，或用户已存在但密码不正确）
 
 ---
 
@@ -85,11 +95,12 @@
 - **方法**: GET
 - **描述**: 按账号查询已绑定/分享的设备列表
 - **参数** (query):
+  - openid（可空）
   - phone_number **或** email
 - **返回**:
   - status: `true` / `false`
   - devices: 设备信息列表（无设备时为 `{}`）；含 name、use_count_month、serial_number、use_history、purview_number、is_shareable
-  - error（未提供手机号或邮箱时）
+  - error（未提供账号或用户不存在时）
 
 ---
 
@@ -116,7 +127,7 @@
   - uuid（可选）
 - **返回**:
   - status: `true` / `false`
-  - error（失败时：设备不存在 / 已分享 / 超过上限 / 未提供账号）
+  - error（失败时：设备不存在 / 被分享用户不存在 / 已分享 / 超过上限 / 未提供账号）
 
 ---
 

@@ -128,13 +128,14 @@ private struct NIRPredictionRequest: Encodable {
     let isBuiltin: Bool
     let builtin: [String]?
     let openid: String
-    let phoneNumber: String
+    let phoneNumber: String?
+    let email: String?
     let serialNumber: String
     let viewSpectrum: Bool
     let uuid: String?
 
     enum CodingKeys: String, CodingKey {
-        case data, builtin, openid, uuid
+        case data, builtin, openid, uuid, email
         case macNIR = "mac_NIR"
         case modelName = "model_name"
         case isBuiltin = "is_builtin"
@@ -149,12 +150,13 @@ private struct IRPredictionRequest: Encodable {
     let serialNumber: String
     let modelName: String
     let openid: String
-    let phoneNumber: String
+    let phoneNumber: String?
+    let email: String?
     let isDefaultReference: Bool
     let isAdapter: Bool
 
     enum CodingKeys: String, CodingKey {
-        case intensity, openid
+        case intensity, openid, email
         case serialNumber = "serial_number"
         case modelName = "model_name"
         case phoneNumber = "phone_number"
@@ -262,7 +264,7 @@ final class LegacyPredictionAPI {
         identity: DeviceIdentity,
         mode: AnalysisMode,
         builtin: [Int]?,
-        account: String
+        session: UserSession
     ) async throws -> PredictionResponse {
         if let builtin,
            builtin.count != 3822 || !builtin.allSatisfy({ 0 ... 255 ~= $0 }) {
@@ -276,7 +278,8 @@ final class LegacyPredictionAPI {
             isBuiltin: builtin != nil,
             builtin: builtin?.map(String.init),
             openid: "",
-            phoneNumber: account,
+            phoneNumber: session.requestPhoneNumber,
+            email: session.requestEmail,
             serialNumber: identity.serialNumber,
             viewSpectrum: false,
             uuid: identity.uuid
@@ -290,7 +293,7 @@ final class LegacyPredictionAPI {
         mode: AnalysisMode,
         useDefaultReference: Bool,
         useAdapter: Bool,
-        account: String
+        session: UserSession
     ) async throws -> PredictionResponse {
         let scans = try Self.irScans(from: captures)
         let payload: IRIntensityPayload = scans.count == 1 ? .single(scans[0]) : .multiple(scans)
@@ -299,7 +302,8 @@ final class LegacyPredictionAPI {
             serialNumber: identity.serialNumber,
             modelName: mode.id,
             openid: "",
-            phoneNumber: account,
+            phoneNumber: session.requestPhoneNumber,
+            email: session.requestEmail,
             isDefaultReference: useDefaultReference,
             isAdapter: useAdapter
         )
@@ -408,12 +412,19 @@ final class LegacyPredictionAPI {
         var request = URLRequest(url: configuration.baseURL.appendingPathComponent(path))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token = configuration.authStore.token, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         request.httpBody = try JSONEncoder().encode(body)
 
         let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              200 ..< 300 ~= httpResponse.statusCode
-        else {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PredictionAPIError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 {
+            throw AppServiceError.unauthorized
+        }
+        guard 200 ..< 300 ~= httpResponse.statusCode else {
             throw PredictionAPIError.invalidResponse
         }
         do {
@@ -486,7 +497,7 @@ final class LivePredictionService: PredictionServicing {
                 identity: identity,
                 mode: mode,
                 builtin: builtin,
-                account: session.phoneNumber
+                session: session
             )
         case .ir2210:
             response = try await api.predictIR2210(
@@ -495,7 +506,7 @@ final class LivePredictionService: PredictionServicing {
                 mode: mode,
                 useDefaultReference: calibration == .builtIn,
                 useAdapter: false,
-                account: session.phoneNumber
+                session: session
             )
         }
 

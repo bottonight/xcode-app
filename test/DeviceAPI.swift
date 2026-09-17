@@ -98,56 +98,127 @@ private struct StatusResponse: Decodable {
 }
 
 private struct NIRDeviceInfoRequest: Encodable {
-    let phoneNumber: String
+    let phoneNumber: String?
+    let email: String?
     let serialNumber: String
     let macNIR: String?
     let deviceName: String
     let uuid: String?
 
     enum CodingKeys: String, CodingKey {
-        case uuid
+        case uuid, email
         case phoneNumber = "phone_number"
         case serialNumber = "serial_number"
         case macNIR = "mac_NIR"
         case deviceName = "device_name"
     }
+
+    init(session: UserSession, identity: DeviceIdentity) {
+        phoneNumber = session.requestPhoneNumber
+        email = session.requestEmail
+        serialNumber = identity.serialNumber
+        macNIR = identity.macNIR
+        deviceName = identity.name
+        uuid = identity.uuid
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(phoneNumber, forKey: .phoneNumber)
+        try container.encodeIfPresent(email, forKey: .email)
+        try container.encode(serialNumber, forKey: .serialNumber)
+        try container.encodeIfPresent(macNIR, forKey: .macNIR)
+        try container.encode(deviceName, forKey: .deviceName)
+        try container.encodeIfPresent(uuid, forKey: .uuid)
+    }
 }
 
 private struct IRDeviceInfoRequest: Encodable {
-    let phoneNumber: String
+    let phoneNumber: String?
+    let email: String?
     let serialNumber: String
     let deviceName: String
 
     enum CodingKeys: String, CodingKey {
+        case email
         case phoneNumber = "phone_number"
         case serialNumber = "serial_number"
         case deviceName = "device_name"
     }
+
+    init(session: UserSession, identity: DeviceIdentity) {
+        phoneNumber = session.requestPhoneNumber
+        email = session.requestEmail
+        serialNumber = identity.serialNumber
+        deviceName = identity.name
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(phoneNumber, forKey: .phoneNumber)
+        try container.encodeIfPresent(email, forKey: .email)
+        try container.encode(serialNumber, forKey: .serialNumber)
+        try container.encode(deviceName, forKey: .deviceName)
+    }
 }
 
 private struct BindDeviceRequest: Encodable {
-    let phoneNumber: String
+    let phoneNumber: String?
+    let email: String?
     let serialNumber: String
     let uuid: String?
 
     enum CodingKeys: String, CodingKey {
-        case uuid
+        case uuid, email
         case phoneNumber = "phone_number"
         case serialNumber = "serial_number"
+    }
+
+    init(session: UserSession, identity: DeviceIdentity) {
+        phoneNumber = session.requestPhoneNumber
+        email = session.requestEmail
+        serialNumber = identity.serialNumber
+        uuid = identity.uuid
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(phoneNumber, forKey: .phoneNumber)
+        try container.encodeIfPresent(email, forKey: .email)
+        try container.encode(serialNumber, forKey: .serialNumber)
+        try container.encodeIfPresent(uuid, forKey: .uuid)
     }
 }
 
 private struct SharedDeviceRequest: Encodable {
-    let phoneNumber: String
+    let phoneNumber: String?
+    let email: String?
     let serialNumber: String
     let sharedPhoneNumber: String?
     let uuid: String?
 
     enum CodingKeys: String, CodingKey {
-        case uuid
+        case uuid, email
         case phoneNumber = "phone_number"
         case serialNumber = "serial_number"
         case sharedPhoneNumber = "number_shared"
+    }
+
+    init(session: UserSession, device: ManagedDevice, sharedPhoneNumber: String?, uuid: String?) {
+        phoneNumber = session.requestPhoneNumber
+        email = session.requestEmail
+        serialNumber = device.serialNumber
+        self.sharedPhoneNumber = sharedPhoneNumber
+        self.uuid = uuid
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(phoneNumber, forKey: .phoneNumber)
+        try container.encodeIfPresent(email, forKey: .email)
+        try container.encode(serialNumber, forKey: .serialNumber)
+        try container.encodeIfPresent(sharedPhoneNumber, forKey: .sharedPhoneNumber)
+        try container.encodeIfPresent(uuid, forKey: .uuid)
     }
 }
 
@@ -174,22 +245,12 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
         case .nir:
             response = try await post(
                 "/apps/LoginPage/getDeviceInfo",
-                body: NIRDeviceInfoRequest(
-                    phoneNumber: session.phoneNumber,
-                    serialNumber: identity.serialNumber,
-                    macNIR: identity.macNIR,
-                    deviceName: identity.name,
-                    uuid: identity.uuid
-                )
+                body: NIRDeviceInfoRequest(session: session, identity: identity)
             )
         case .ir2210:
             response = try await post(
                 "/apps/LoginPage/getIR2210DeviceInfo",
-                body: IRDeviceInfoRequest(
-                    phoneNumber: session.phoneNumber,
-                    serialNumber: identity.serialNumber,
-                    deviceName: identity.name
-                )
+                body: IRDeviceInfoRequest(session: session, identity: identity)
             )
         }
 
@@ -217,11 +278,7 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
     ) async throws -> [AnalysisMode] {
         let response: BindResponse = try await post(
             "/apps/LoginPage/bindDevice",
-            body: BindDeviceRequest(
-                phoneNumber: session.phoneNumber,
-                serialNumber: identity.serialNumber,
-                uuid: identity.uuid
-            )
+            body: BindDeviceRequest(session: session, identity: identity)
         )
         guard response.status else {
             throw AppServiceError.unavailable(response.error ?? "设备绑定失败")
@@ -232,7 +289,7 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
     func managedDevices(for session: UserSession) async throws -> [ManagedDevice] {
         let response: DeviceListResponse = try await get(
             "/apps/LoginPage/getDevices",
-            query: [URLQueryItem(name: "phone_number", value: session.phoneNumber)]
+            query: [session.accountQueryItem]
         )
         guard response.status else {
             throw AppServiceError.unavailable(response.error ?? "获取设备列表失败")
@@ -244,8 +301,8 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
         let response: SharedUsersResponse = try await post(
             "/apps/LoginPage/getSharedUser",
             body: SharedDeviceRequest(
-                phoneNumber: session.phoneNumber,
-                serialNumber: device.serialNumber,
+                session: session,
+                device: device,
                 sharedPhoneNumber: nil,
                 uuid: nil
             )
@@ -260,8 +317,8 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
         let response: StatusResponse = try await post(
             "/apps/LoginPage/shareDevice",
             body: SharedDeviceRequest(
-                phoneNumber: session.phoneNumber,
-                serialNumber: device.serialNumber,
+                session: session,
+                device: device,
                 sharedPhoneNumber: phoneNumber,
                 uuid: nil
             )
@@ -275,8 +332,8 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
         let response: StatusResponse = try await post(
             "/apps/LoginPage/deleteSharedDevice",
             body: SharedDeviceRequest(
-                phoneNumber: session.phoneNumber,
-                serialNumber: device.serialNumber,
+                session: session,
+                device: device,
                 sharedPhoneNumber: phoneNumber,
                 uuid: nil
             )
@@ -299,6 +356,9 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
         var request = URLRequest(url: configuration.baseURL.appendingPathComponent(path))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token = configuration.authStore.token, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         request.httpBody = try JSONEncoder().encode(body)
         return try await send(request)
     }
@@ -315,7 +375,11 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
         guard let url = components?.url else {
             throw AppServiceError.unavailable("接口地址无效")
         }
-        return try await send(URLRequest(url: url))
+        var request = URLRequest(url: url)
+        if let token = configuration.authStore.token, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        return try await send(request)
     }
 
     private func send<Response: Decodable>(_ request: URLRequest) async throws -> Response {
@@ -323,6 +387,9 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
             let (data, response) = try await urlSession.data(for: request)
             guard let http = response as? HTTPURLResponse else {
                 throw AppServiceError.unavailable("服务器响应无效")
+            }
+            if http.statusCode == 401 {
+                throw AppServiceError.unauthorized
             }
             guard 200 ..< 300 ~= http.statusCode else {
                 let message = http.statusCode >= 500

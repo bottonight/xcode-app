@@ -3,16 +3,39 @@ import Security
 
 enum AppServiceError: LocalizedError {
     case invalidPhone
+    case invalidEmail
+    case invalidPassword
+    case unauthorized
     case invalidCode
     case unavailable(String)
 
     var errorDescription: String? {
         switch self {
-        case .invalidPhone: "请输入正确的手机号"
+        case .invalidPhone: "请输入正确的 11 位手机号"
+        case .invalidEmail: "请输入正确的邮箱"
+        case .invalidPassword: "请输入至少 6 位密码"
+        case .unauthorized: "登录已过期，请重新登录"
         case .invalidCode: "请输入 6 位验证码"
         case let .unavailable(message): message
         }
     }
+}
+
+@MainActor
+protocol AuthServicing {
+    func login(account: AccountIdentifier, password: String) async throws -> UserSession
+    func register(
+        username: String,
+        account: AccountIdentifier,
+        password: String,
+        company: String,
+        industry: String
+    ) async throws -> UserSession
+}
+
+@MainActor
+final class APIAuthStore {
+    var token: String?
 }
 
 @MainActor
@@ -105,8 +128,10 @@ struct KeychainSessionStore: SessionStoring {
 
 struct LegacyAPIConfiguration {
     let baseURL: URL
+    let authStore: APIAuthStore
 
-    init(baseURL: URL) {
+    init(baseURL: URL, authStore: APIAuthStore = APIAuthStore()) {
         self.baseURL = baseURL
+        self.authStore = authStore
     }
 }

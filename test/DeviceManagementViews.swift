@@ -202,7 +202,7 @@ struct AccountView: View {
                         VStack(alignment: .leading) {
                             Text(app.session?.username ?? "用户")
                                 .font(.headline)
-                            Text(app.session?.phoneNumber ?? "")
+                            Text(app.session?.displayAccount ?? "")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }

@@ -36,7 +36,7 @@ struct HomeFlowView: View {
                         }
                     case .workbench:
                         Button {
-                            app.homeRoute = .modeSelection
+                            app.leaveWorkbench()
                         } label: {
                             Label("返回", systemImage: "chevron.left")
                         }
@@ -374,7 +374,7 @@ struct MeasurementWorkbenchView: View {
             Button {
                 Task { await app.runScan() }
             } label: {
-                Text(app.isBusy ? "正在处理…" : "开始扫描")
+                Text(app.isBusy ? app.busyTitle : "开始扫描")
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 5)
