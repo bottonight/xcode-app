@@ -130,7 +130,7 @@ struct LegacyAPIConfiguration {
     let baseURL: URL
     let authStore: APIAuthStore
 
-    init(baseURL: URL, authStore: APIAuthStore = APIAuthStore()) {
+    init(baseURL: URL, authStore: APIAuthStore) {
         self.baseURL = baseURL
         self.authStore = authStore
     }
