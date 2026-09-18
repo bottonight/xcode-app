@@ -92,8 +92,12 @@ struct DeviceDiscoveryView: View {
     var body: some View {
         ZStack {
             FabricTheme.background.ignoresSafeArea()
-            VStack(spacing: 0) {
+            List {
                 bluetoothBanner
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+
                 if app.bluetooth.nearbyDevices.isEmpty {
                     ContentUnavailableView {
                         Label("附近没有设备", systemImage: "dot.radiowaves.left.and.right")
@@ -103,8 +107,10 @@ struct DeviceDiscoveryView: View {
                         Button("重新扫描") { app.bluetooth.startScanning() }
                             .buttonStyle(.borderedProminent)
                     }
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
                 } else {
-                    List(app.bluetooth.nearbyDevices) { device in
+                    ForEach(app.bluetooth.nearbyDevices) { device in
                         Button {
                             Task { await app.prepare(device) }
                         } label: {
@@ -112,12 +118,12 @@ struct DeviceDiscoveryView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
-                    .refreshable {
-                        app.bluetooth.startScanning()
-                    }
                 }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .refreshable {
+                app.bluetooth.startScanning()
             }
         }
         .navigationTitle("发现设备")
