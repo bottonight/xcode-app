@@ -64,6 +64,7 @@ private enum BluetoothOperation {
     case nirCollecting
     case nirHardwareCollecting
     case irCollecting
+    case irHardwareCollecting
 }
 
 private struct IRFrameAssembler {
@@ -469,6 +470,42 @@ final class BluetoothManager: NSObject {
         }
     }
 
+    private func handleIRKeyPressed() {
+        guard operation == .idle || operation == .irHardwareCollecting else { return }
+        operation = .irHardwareCollecting
+        irMeasurementGroups.removeAll()
+        onHardwareScanStarted?()
+        startTimeout(seconds: 15, operationName: "IR2210 扫描") { [weak self] in
+            self?.failCurrentIRScan(with: BluetoothError.timeout("IR2210 扫描"))
+        }
+    }
+
+    private func finishIRMeasurement() {
+        var values: [Double] = []
+        for group in 1 ... 64 {
+            guard let payload = irMeasurementGroups[group], payload.count == 8 else {
+                failCurrentIRScan(with: BluetoothError.invalidData("IR2210 光谱分包不完整"))
+                return
+            }
+            stride(from: 0, to: 8, by: 2).forEach { index in
+                values.append(Double(UInt16(payload[index]) << 8 | UInt16(payload[index + 1])))
+            }
+        }
+        let capture = ScanCapture(
+            id: UUID(),
+            capturedAt: Date(),
+            data: .ir2210(values),
+            preview: values.enumerated().map {
+                SpectrumPoint(index: $0.offset, intensity: $0.element)
+            }
+        )
+        if operation == .irHardwareCollecting {
+            completeHardwareScan(capture)
+        } else {
+            completeScan(capture)
+        }
+    }
+
     private func handleIRNotification(_ data: Data) {
         for frame in irAssembler.feed(data) {
             guard frame.count >= 11, frame[2] == 0xDD, Self.hasValidChecksum(frame) else { continue }
@@ -476,6 +513,11 @@ final class BluetoothManager: NSObject {
                 | UInt32(frame[7]) << 16
                 | UInt32(frame[8]) << 8
                 | UInt32(frame[9])
+
+            if address == 0x4000300A {
+                handleIRKeyPressed()
+                continue
+            }
 
             if address == 0x40003007, operation == .irIdentity, frame.count >= 20 {
                 irSNGroups[Int(frame[10])] = Array(frame[11 ..< 19])
@@ -496,29 +538,15 @@ final class BluetoothManager: NSObject {
                         )
                     )
                 }
-            } else if address == 0x40003005, operation == .irCollecting, frame.count >= 20 {
+            } else if address == 0x40003005,
+                      operation == .irCollecting || operation == .irHardwareCollecting,
+                      frame.count >= 20 {
+                if operation == .irHardwareCollecting, irMeasurementGroups.isEmpty {
+                    onHardwareScanProcessing?()
+                }
                 irMeasurementGroups[Int(frame[10])] = Array(frame[11 ..< 19])
                 if irMeasurementGroups.count == 64 {
-                    var values: [Double] = []
-                    for group in 1 ... 64 {
-                        guard let payload = irMeasurementGroups[group], payload.count == 8 else {
-                            failScan(with: BluetoothError.invalidData("IR2210 光谱分包不完整"))
-                            return
-                        }
-                        stride(from: 0, to: 8, by: 2).forEach { index in
-                            values.append(Double(UInt16(payload[index]) << 8 | UInt16(payload[index + 1])))
-                        }
-                    }
-                    completeScan(
-                        ScanCapture(
-                            id: UUID(),
-                            capturedAt: Date(),
-                            data: .ir2210(values),
-                            preview: values.enumerated().map {
-                                SpectrumPoint(index: $0.offset, intensity: $0.element)
-                            }
-                        )
-                    )
+                    finishIRMeasurement()
                 }
             }
         }
@@ -598,9 +626,20 @@ final class BluetoothManager: NSObject {
         }
     }
 
+    private func failCurrentIRScan(with error: Error) {
+        if operation == .irHardwareCollecting || scanContinuation == nil {
+            timeoutTask?.cancel()
+            operation = .idle
+            onHardwareScanError?(error)
+        } else {
+            failScan(with: error)
+        }
+    }
+
     private func failAllPending(with error: BluetoothError) {
         let wasHardwareScan = operation == .nirHardwareScanning
             || operation == .nirHardwareCollecting
+            || operation == .irHardwareCollecting
         timeoutTask?.cancel()
         connectionContinuation?.resume(throwing: error)
         connectionContinuation = nil
