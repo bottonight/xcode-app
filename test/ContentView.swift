@@ -22,8 +22,8 @@ struct ContentView: View {
                 MainShellView()
             }
         }
-        .alert("提示", isPresented: hasMessage) {
-            Button("知道了", role: .cancel) {}
+        .alert(app.t("common.alert"), isPresented: hasMessage) {
+            Button(app.t("common.ok"), role: .cancel) {}
         } message: {
             Text(app.errorMessage ?? app.noticeMessage ?? "")
         }
@@ -32,6 +32,7 @@ struct ContentView: View {
                 BusyOverlay(title: app.busyTitle)
             }
         }
+        .environment(\.locale, app.language.locale)
     }
 }
 
@@ -42,17 +43,17 @@ private struct MainShellView: View {
         TabView {
             HomeFlowView()
                 .tabItem {
-                    Label("首页", systemImage: "house")
+                    Label(app.t("tab.home"), systemImage: "house")
                 }
 
             DeviceManagementView()
                 .tabItem {
-                    Label("设备", systemImage: "sensor")
+                    Label(app.t("tab.devices"), systemImage: "sensor")
                 }
 
             AccountView()
                 .tabItem {
-                    Label("我的", systemImage: "person.crop.circle")
+                    Label(app.t("tab.account"), systemImage: "person.crop.circle")
                 }
         }
         .tint(FabricTheme.indigo)

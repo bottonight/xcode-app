@@ -11,11 +11,11 @@ enum AppServiceError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidPhone: "请输入正确的 11 位手机号"
-        case .invalidEmail: "请输入正确的邮箱"
-        case .invalidPassword: "请输入至少 6 位密码"
-        case .unauthorized: "登录已过期，请重新登录"
-        case .invalidCode: "请输入验证码"
+        case .invalidPhone: L10n.t("error.invalid_phone")
+        case .invalidEmail: L10n.t("error.invalid_email")
+        case .invalidPassword: L10n.t("error.invalid_password")
+        case .unauthorized: L10n.t("error.unauthorized")
+        case .invalidCode: L10n.t("error.invalid_code")
         case let .unavailable(message): message
         }
     }
@@ -135,5 +135,14 @@ struct LegacyAPIConfiguration {
     init(baseURL: URL, authStore: APIAuthStore) {
         self.baseURL = baseURL
         self.authStore = authStore
+    }
+}
+
+extension URLRequest {
+    mutating func applyAPIHeaders(token: String? = nil) {
+        setValue(L10n.language.rawValue, forHTTPHeaderField: "Accept-Language")
+        if let token, !token.isEmpty {
+            setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
     }
 }

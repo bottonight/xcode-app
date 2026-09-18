@@ -9,9 +9,9 @@ struct DeviceManagementView: View {
             Group {
                 if app.managedDevices.isEmpty && !app.isBusy {
                     ContentUnavailableView {
-                        Label("还没有绑定设备", systemImage: "sensor")
+                        Label(app.t("devices.empty"), systemImage: "sensor")
                     } description: {
-                        Text("在首页连接设备后即可完成绑定")
+                        Text(app.t("devices.empty_hint"))
                     }
                 } else {
                     List(app.managedDevices) { device in
@@ -23,7 +23,7 @@ struct DeviceManagementView: View {
                                     Text(device.name)
                                         .font(.headline)
                                     Spacer()
-                                    Text("本月 \(device.monthlyUseCount) 次")
+                                    Text(app.t("mode.monthly_use", device.monthlyUseCount))
                                         .font(.subheadline)
                                         .foregroundStyle(FabricTheme.indigo)
                                 }
@@ -40,7 +40,7 @@ struct DeviceManagementView: View {
                     }
                 }
             }
-            .navigationTitle("我的设备")
+            .navigationTitle(app.t("devices.title"))
             .task {
                 if app.managedDevices.isEmpty {
                     await app.loadManagedDevices()
@@ -57,6 +57,7 @@ private struct UsageEntry: Identifiable {
 }
 
 struct ManagedDeviceDetailView: View {
+    @Environment(AppModel.self) private var app
     let device: ManagedDevice
     @State private var showsSharing = false
 
@@ -76,18 +77,18 @@ struct ManagedDeviceDetailView: View {
                         .font(.subheadline.monospaced())
                         .foregroundStyle(.secondary)
                     Divider()
-                    LabeledContent("本月使用次数", value: "\(device.monthlyUseCount)")
+                    LabeledContent(app.t("devices.monthly_count"), value: "\(device.monthlyUseCount)")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .brandCard()
 
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("使用趋势")
+                    Text(app.t("devices.trend"))
                         .font(.headline)
                     Chart(entries) { entry in
                         BarMark(
-                            x: .value("月份", entry.month),
-                            y: .value("次数", entry.count)
+                            x: .value(app.t("devices.month"), entry.month),
+                            y: .value(app.t("devices.count"), entry.count)
                         )
                         .foregroundStyle(FabricTheme.indigo.gradient)
                         .cornerRadius(4)
@@ -100,7 +101,7 @@ struct ManagedDeviceDetailView: View {
                     Button {
                         showsSharing = true
                     } label: {
-                        Label("管理设备分享", systemImage: "person.2.badge.gearshape")
+                        Label(app.t("devices.manage_share"), systemImage: "person.2.badge.gearshape")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
@@ -110,7 +111,7 @@ struct ManagedDeviceDetailView: View {
             .padding()
         }
         .background(FabricTheme.background.ignoresSafeArea())
-        .navigationTitle("设备详情")
+        .navigationTitle(app.t("devices.detail"))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showsSharing) {
             DeviceSharingView(device: device)
@@ -130,10 +131,10 @@ struct DeviceSharingView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("添加共享用户") {
-                    TextField("用户手机号", text: $phoneNumber)
+                Section(app.t("share.add")) {
+                    TextField(app.t("share.phone"), text: $phoneNumber)
                         .keyboardType(.phonePad)
-                    Button("分享设备") {
+                    Button(app.t("share.action")) {
                         Task {
                             guard await app.share(device, phoneNumber: phoneNumber) else { return }
                             phoneNumber = ""
@@ -143,16 +144,16 @@ struct DeviceSharingView: View {
                     .disabled(phoneNumber.count != 11)
                 }
 
-                Section("已共享") {
+                Section(app.t("share.existing")) {
                     if users.isEmpty && !isLoading {
-                        Text("尚未分享给其他用户")
+                        Text(app.t("share.empty"))
                             .foregroundStyle(.secondary)
                     }
                     ForEach(users) { user in
                         HStack {
                             Label(user.phoneNumber, systemImage: "person.crop.circle")
                             Spacer()
-                            Button("取消", role: .destructive) {
+                            Button(app.t("share.revoke"), role: .destructive) {
                                 Task {
                                     if await app.revoke(device, phoneNumber: user.phoneNumber) {
                                         await reload()
@@ -166,11 +167,11 @@ struct DeviceSharingView: View {
             .overlay {
                 if isLoading { ProgressView() }
             }
-            .navigationTitle("设备分享")
+            .navigationTitle(app.t("share.title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+                    Button(app.t("common.done")) { dismiss() }
                 }
             }
             .task { await reload() }
@@ -200,7 +201,7 @@ struct AccountView: View {
                             .font(.system(size: 46))
                             .foregroundStyle(FabricTheme.indigo)
                         VStack(alignment: .leading) {
-                            Text(app.session?.username ?? "用户")
+                            Text(app.session?.username ?? app.t("common.user"))
                                 .font(.headline)
                             Text(app.session?.displayAccount ?? "")
                                 .font(.subheadline)
@@ -209,16 +210,28 @@ struct AccountView: View {
                     }
                     .padding(.vertical, 6)
                 }
-                Section("权限") {
-                    LabeledContent("管理员等级", value: "\(app.permissions.adminLevel)")
+                Section {
+                    Picker(app.t("account.language"), selection: Binding(
+                        get: { app.language },
+                        set: { app.language = $0 }
+                    )) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Text(language.nativeName).tag(language)
+                        }
+                    }
+                }
+                if app.permissions.adminLevel >= 1 {
+                    Section(app.t("account.permissions")) {
+                        LabeledContent(app.t("account.admin_level"), value: "\(app.permissions.adminLevel)")
+                    }
                 }
                 Section {
-                    Button("退出登录", role: .destructive) {
+                    Button(app.t("account.sign_out"), role: .destructive) {
                         app.signOut()
                     }
                 }
             }
-            .navigationTitle("我的")
+            .navigationTitle(app.t("account.title"))
         }
     }
 }

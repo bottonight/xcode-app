@@ -9,8 +9,8 @@ enum PredictionAPIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case let .invalidCapture(message): message
-        case .invalidBuiltin: "NIR 内置参考必须是长度为 3822 的原始字节流"
-        case .invalidResponse: "服务器返回了无法识别的数据"
+        case .invalidBuiltin: L10n.t("pred.invalid_builtin")
+        case .invalidResponse: L10n.t("pred.invalid_response")
         case let .server(message): message
         }
     }
@@ -412,9 +412,7 @@ final class LegacyPredictionAPI {
         var request = URLRequest(url: configuration.baseURL.appendingPathComponent(path))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let token = configuration.authStore.token, !token.isEmpty {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
+        request.applyAPIHeaders(token: configuration.authStore.token)
         request.httpBody = try JSONEncoder().encode(body)
 
         let (data, response) = try await session.data(for: request)
@@ -436,14 +434,14 @@ final class LegacyPredictionAPI {
 
     private static func nirScans(from captures: [ScanCapture]) throws -> [[Int]] {
         guard !captures.isEmpty else {
-            throw PredictionAPIError.invalidCapture("请先采集 NIR 光谱")
+            throw PredictionAPIError.invalidCapture(L10n.t("pred.need_nir"))
         }
         return try captures.map { capture in
             guard case let .nir(values) = capture.data, values.count == 3822 else {
-                throw PredictionAPIError.invalidCapture("每次 NIR 扫描必须包含 3822 个字节")
+                throw PredictionAPIError.invalidCapture(L10n.t("pred.nir_length"))
             }
             guard values.allSatisfy({ 0 ... 255 ~= $0 }) else {
-                throw PredictionAPIError.invalidCapture("NIR 扫描数据必须是 0–255 的整数")
+                throw PredictionAPIError.invalidCapture(L10n.t("pred.nir_range"))
             }
             return values
         }
@@ -451,11 +449,11 @@ final class LegacyPredictionAPI {
 
     private static func irScans(from captures: [ScanCapture]) throws -> [[Double]] {
         guard !captures.isEmpty else {
-            throw PredictionAPIError.invalidCapture("请先采集 IR2210 光谱")
+            throw PredictionAPIError.invalidCapture(L10n.t("pred.need_ir"))
         }
         return try captures.map { capture in
             guard case let .ir2210(values) = capture.data, values.count == 256 else {
-                throw PredictionAPIError.invalidCapture("每次 IR2210 扫描必须包含 256 个强度值")
+                throw PredictionAPIError.invalidCapture(L10n.t("pred.ir_length"))
             }
             return values
         }
@@ -511,7 +509,7 @@ final class LivePredictionService: PredictionServicing {
         }
 
         guard response.status, let result = response.result else {
-            throw PredictionAPIError.server(response.error ?? "预测失败")
+            throw PredictionAPIError.server(response.error ?? L10n.t("pred.failed"))
         }
 
         return MeasurementResult(
@@ -535,7 +533,7 @@ final class LivePredictionService: PredictionServicing {
             response = try await api.setIR2210UserReference(capture: capture, identity: identity)
         }
         guard response.status == .success else {
-            throw PredictionAPIError.server(response.error ?? "设置参考光谱失败")
+            throw PredictionAPIError.server(response.error ?? L10n.t("pred.ref_failed"))
         }
     }
 

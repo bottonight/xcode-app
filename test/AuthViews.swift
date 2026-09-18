@@ -20,17 +20,29 @@ struct AuthenticationView: View {
     }
 
     private enum Industry: String, CaseIterable, Identifiable {
-        case research = "科研人员"
-        case inspection = "检测人员"
-        case manufacturer = "生产商"
-        case personal = "个人自用"
-        case trade = "贸易行业"
+        case research
+        case inspection
+        case manufacturer
+        case personal
+        case trade
 
         var id: String { rawValue }
+
+        var apiValue: String {
+            switch self {
+            case .research: "科研人员"
+            case .inspection: "检测人员"
+            case .manufacturer: "生产商"
+            case .personal: "个人自用"
+            case .trade: "贸易行业"
+            }
+        }
+
+        var titleKey: String { "industry.\(rawValue)" }
     }
 
     private var accountPlaceholder: String {
-        allowsPhone ? "手机号或邮箱" : "邮箱"
+        allowsPhone ? app.t("auth.account_cn") : app.t("auth.account_intl")
     }
 
     private var canSubmit: Bool {
@@ -73,9 +85,9 @@ struct AuthenticationView: View {
             }
             Text("FabricLab")
                 .font(.largeTitle.bold())
-            Text("连接近红外设备，快速获取可信的分析数据")
+            Text(app.t("auth.tagline"))
                 .foregroundStyle(.secondary)
-            Text(allowsPhone ? "当前地区：中国大陆" : "Current region: International")
+            Text(allowsPhone ? app.t("auth.region_cn") : app.t("auth.region_intl"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -84,11 +96,11 @@ struct AuthenticationView: View {
 
     private var form: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text(showsRegister ? "创建账号" : "用户登录")
+            Text(showsRegister ? app.t("auth.register_title") : app.t("auth.login_title"))
                 .font(.title2.bold())
 
             if showsRegister {
-                TextField("用户名", text: $username)
+                TextField(app.t("auth.username"), text: $username)
                     .textContentType(.username)
                     .focused($focusedField, equals: .username)
                 Divider()
@@ -103,38 +115,38 @@ struct AuthenticationView: View {
 
             Divider()
 
-            SecureField("密码（至少 6 位）", text: $password)
+            SecureField(app.t("auth.password"), text: $password)
                 .textContentType(showsRegister ? .newPassword : .password)
                 .focused($focusedField, equals: .password)
 
             if showsRegister {
                 Divider()
-                SecureField("确认密码", text: $confirmPassword)
+                SecureField(app.t("auth.confirm_password"), text: $confirmPassword)
                     .textContentType(.newPassword)
                     .focused($focusedField, equals: .confirm)
                 Divider()
                 HStack {
-                    TextField("验证码", text: $verificationCode)
+                    TextField(app.t("auth.code"), text: $verificationCode)
                         .keyboardType(.numberPad)
                         .textContentType(.oneTimeCode)
                         .focused($focusedField, equals: .code)
-                    Button(codeCooldown > 0 ? "\(codeCooldown)s" : "获取验证码") {
+                    Button(codeCooldown > 0 ? "\(codeCooldown)s" : app.t("auth.get_code")) {
                         Task { await sendCode() }
                     }
                     .font(.subheadline.weight(.semibold))
                     .disabled(codeCooldown > 0 || app.isBusy || account.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 Divider()
-                TextField("公司（选填）", text: $company)
+                TextField(app.t("auth.company"), text: $company)
                     .textContentType(.organizationName)
                     .focused($focusedField, equals: .company)
                 Divider()
                 HStack {
-                    Text("所在行业")
+                    Text(app.t("auth.industry"))
                     Spacer()
-                    Picker("所在行业", selection: $industry) {
+                    Picker(app.t("auth.industry"), selection: $industry) {
                         ForEach(Industry.allCases) { item in
-                            Text(item.rawValue).tag(item)
+                            Text(app.t(item.titleKey)).tag(item)
                         }
                     }
                     .labelsHidden()
@@ -147,7 +159,7 @@ struct AuthenticationView: View {
                 focusedField = nil
                 Task { await submit() }
             } label: {
-                Text(showsRegister ? "注册并登录" : "登录")
+                Text(showsRegister ? app.t("auth.register") : app.t("auth.login"))
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
@@ -164,7 +176,7 @@ struct AuthenticationView: View {
         Button {
             showsRegister.toggle()
         } label: {
-            Text(showsRegister ? "已有账号？点击登录" : "没有账号？点击注册")
+            Text(showsRegister ? app.t("auth.to_login") : app.t("auth.to_register"))
                 .font(.footnote)
                 .frame(maxWidth: .infinity)
         }
@@ -175,7 +187,7 @@ struct AuthenticationView: View {
 
     private var privacyNote: some View {
         Label(
-            "登录即表示同意用户协议和隐私政策。账号将保存在本机，下次打开自动登录。",
+            app.t("auth.privacy"),
             systemImage: "lock.shield"
         )
         .font(.footnote)
@@ -201,7 +213,7 @@ struct AuthenticationView: View {
                 confirmPassword: confirmPassword,
                 verificationCode: verificationCode,
                 company: company,
-                industry: industry.rawValue
+                industry: industry.apiValue
             )
         } else {
             await app.login(account: account, password: password)

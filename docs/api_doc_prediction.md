@@ -13,6 +13,10 @@
 - `/ComponentLabel`、`/test` 除外。
 - 登录成功即可，不要求管理员权限。未登录或 token 无效返回 HTTP 401。
 
+**语言约定**：
+- 请求头带 `Accept-Language: zh-Hans` 或 `en`。`error` / `info` 等提示按该语言返回。
+- 未传或无法识别时默认简体中文（`zh-Hans`）。
+
 **扫描数据格式**：
 
 ### NIR `data`（`/Prediction`、`/viewSpectrum`、`/reScan`）

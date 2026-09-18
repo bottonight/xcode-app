@@ -190,7 +190,7 @@ final class LegacyAuthAPI: AuthServicing {
             )
         )
         guard response.status != false else {
-            throw AppServiceError.unavailable(response.error ?? "登录失败")
+            throw AppServiceError.unavailable(response.error ?? L10n.t("error.login_failed"))
         }
         return try Self.session(
             token: response.token,
@@ -218,7 +218,7 @@ final class LegacyAuthAPI: AuthServicing {
             )
         }
         guard response.status != false else {
-            throw AppServiceError.unavailable(response.error ?? "验证码发送失败")
+            throw AppServiceError.unavailable(response.error ?? L10n.t("error.code_failed"))
         }
     }
 
@@ -245,7 +245,7 @@ final class LegacyAuthAPI: AuthServicing {
             unwrapJSONString: true
         )
         guard response.status != false else {
-            throw AppServiceError.unavailable(response.error ?? "注册失败")
+            throw AppServiceError.unavailable(response.error ?? L10n.t("error.register_failed"))
         }
         return try Self.session(
             token: response.token,
@@ -266,21 +266,22 @@ final class LegacyAuthAPI: AuthServicing {
         var request = URLRequest(url: configuration.baseURL.appendingPathComponent(path))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.applyAPIHeaders()
         request.httpBody = try JSONEncoder().encode(body)
 
         let (data, response) = try await urlSession.data(for: request)
         guard let http = response as? HTTPURLResponse else {
-            throw AppServiceError.unavailable("服务器响应无效")
+            throw AppServiceError.unavailable(L10n.t("error.invalid_response"))
         }
         guard 200 ..< 300 ~= http.statusCode else {
-            throw AppServiceError.unavailable("接口请求失败（HTTP \(http.statusCode)）")
+            throw AppServiceError.unavailable(L10n.t("error.login_http", http.statusCode))
         }
 
         let payload = unwrapJSONString ? Self.unwrapJSONString(data) : data
         do {
             return try JSONDecoder().decode(Response.self, from: payload)
         } catch {
-            throw AppServiceError.unavailable("服务器返回数据格式不正确")
+            throw AppServiceError.unavailable(L10n.t("error.decode"))
         }
     }
 
@@ -302,13 +303,13 @@ final class LegacyAuthAPI: AuthServicing {
         fallback: AccountIdentifier
     ) throws -> UserSession {
         guard let token, !token.isEmpty else {
-            throw AppServiceError.unavailable("登录成功但未返回 token")
+            throw AppServiceError.unavailable(L10n.t("error.missing_token"))
         }
         return UserSession(
             userID: userID.flatMap { $0.isEmpty ? nil : $0 } ?? fallback.value,
             phoneNumber: phoneNumber ?? fallback.phoneNumber ?? "",
             email: email ?? fallback.email ?? "",
-            username: username.flatMap { $0.isEmpty ? nil : $0 } ?? "用户",
+            username: username.flatMap { $0.isEmpty ? nil : $0 } ?? L10n.t("common.user"),
             authToken: token,
             adminLevel: adminLevel ?? 0,
             canViewSpectrum: false

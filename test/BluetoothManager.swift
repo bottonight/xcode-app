@@ -6,12 +6,18 @@ enum BluetoothStatus: Equatable {
     case unknown
     case unavailable(String)
     case ready
+    case poweredOff
+    case unauthorized
+    case unsupported
 
     var message: String {
         switch self {
-        case .unknown: "正在检查蓝牙"
+        case .unknown: L10n.t("bt.checking")
         case let .unavailable(message): message
-        case .ready: "蓝牙已就绪"
+        case .ready: L10n.t("bt.ready")
+        case .poweredOff: L10n.t("bt.off")
+        case .unauthorized: L10n.t("bt.unauthorized")
+        case .unsupported: L10n.t("bt.unsupported")
         }
     }
 }
@@ -26,12 +32,12 @@ enum BluetoothError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .notReady: "蓝牙尚未就绪"
-        case .deviceLost: "设备连接已断开"
-        case let .missingCharacteristic(name): "设备缺少必要特征：\(name)"
+        case .notReady: L10n.t("bt.not_ready")
+        case .deviceLost: L10n.t("bt.device_lost")
+        case let .missingCharacteristic(name): L10n.t("bt.missing_char", name)
         case let .invalidData(message): message
-        case let .timeout(operation): "\(operation)超时，请重试"
-        case let .connectionFailed(message): "连接失败：\(message)"
+        case let .timeout(operation): L10n.t("bt.timeout", operation)
+        case let .connectionFailed(message): L10n.t("bt.connection_failed", message)
         }
     }
 }
@@ -173,7 +179,7 @@ final class BluetoothManager: NSObject {
             throw BluetoothError.deviceLost
         }
         guard connectionContinuation == nil else {
-            throw BluetoothError.connectionFailed("已有连接正在进行")
+            throw BluetoothError.connectionFailed(L10n.t("bt.busy_connect"))
         }
 
         connectedDevice = device
@@ -182,8 +188,8 @@ final class BluetoothManager: NSObject {
         try await withCheckedThrowingContinuation { continuation in
             connectionContinuation = continuation
             centralManager.connect(peripheral, options: nil)
-            startTimeout(seconds: 12, operationName: "连接设备") { [weak self] in
-                self?.failConnection(with: .timeout("连接设备"))
+            startTimeout(seconds: 12, operationName: L10n.t("bt.op.connect")) { [weak self] in
+                self?.failConnection(with: .timeout(L10n.t("bt.op.connect")))
             }
         }
     }
@@ -211,15 +217,15 @@ final class BluetoothManager: NSObject {
                 if let systemID {
                     peripheral.readValue(for: systemID)
                 }
-                startTimeout(seconds: 6, operationName: "读取设备编号") { [weak self] in
-                    self?.failIdentity(with: BluetoothError.timeout("读取设备编号"))
+                startTimeout(seconds: 6, operationName: L10n.t("bt.op.read_sn")) { [weak self] in
+                    self?.failIdentity(with: BluetoothError.timeout(L10n.t("bt.op.read_sn")))
                 }
             case .ir2210:
                 operation = .irIdentity
                 irSNGroups.removeAll()
                 irAssembler.reset()
-                startTimeout(seconds: 6, operationName: "读取设备编号") { [weak self] in
-                    self?.failIdentity(with: BluetoothError.timeout("读取设备编号"))
+                startTimeout(seconds: 6, operationName: L10n.t("bt.op.read_sn")) { [weak self] in
+                    self?.failIdentity(with: BluetoothError.timeout(L10n.t("bt.op.read_sn")))
                 }
                 Task { @MainActor [weak self] in
                     try? await Task.sleep(nanoseconds: 100_000_000)
@@ -240,7 +246,7 @@ final class BluetoothManager: NSObject {
 
     func readBuiltin(for device: NearbyDevice) async throws -> [Int] {
         guard device.kind == .nir else {
-            throw BluetoothError.invalidData("IR2210 不使用 NIR 内置参考")
+            throw BluetoothError.invalidData(L10n.t("bt.ir_no_builtin"))
         }
         if let cached = nirBuiltinCache[device.id] {
             return cached
@@ -249,7 +255,7 @@ final class BluetoothManager: NSObject {
               let peripheral = peripherals[device.id]
         else { throw BluetoothError.deviceLost }
         guard builtinContinuation == nil, operation == .idle else {
-            throw BluetoothError.connectionFailed("设备正在执行其他操作")
+            throw BluetoothError.connectionFailed(L10n.t("bt.busy_other"))
         }
 
         return try await withCheckedThrowingContinuation { continuation in
@@ -264,8 +270,8 @@ final class BluetoothManager: NSObject {
             nirBuiltinBuffer.removeAll(keepingCapacity: true)
             do {
                 try write(Data([0x00]), to: request, on: peripheral)
-                startTimeout(seconds: 15, operationName: "读取内置参考") { [weak self] in
-                    self?.failBuiltin(with: BluetoothError.timeout("读取内置参考"))
+                startTimeout(seconds: 15, operationName: L10n.t("bt.op.builtin")) { [weak self] in
+                    self?.failBuiltin(with: BluetoothError.timeout(L10n.t("bt.op.builtin")))
                 }
             } catch {
                 failBuiltin(with: error)
@@ -387,8 +393,8 @@ final class BluetoothManager: NSObject {
         if operation == .idle {
             operation = .nirHardwareScanning
             onHardwareScanStarted?()
-            startTimeout(seconds: 30, operationName: "NIR 扫描") { [weak self] in
-                self?.failCurrentNIRScan(with: BluetoothError.timeout("NIR 扫描"))
+            startTimeout(seconds: 30, operationName: L10n.t("bt.op.nir_scan")) { [weak self] in
+                self?.failCurrentNIRScan(with: BluetoothError.timeout(L10n.t("bt.op.nir_scan")))
             }
         }
 
@@ -405,9 +411,9 @@ final class BluetoothManager: NSObject {
         onHardwareScanProcessing?()
         do {
             try write(Data(bytes[1 ... 4]), to: request, on: peripheral)
-            startTimeout(seconds: 15, operationName: "读取 NIR 扫描数据") { [weak self] in
+            startTimeout(seconds: 15, operationName: L10n.t("bt.op.nir_data")) { [weak self] in
                 self?.failCurrentNIRScan(
-                    with: BluetoothError.timeout("读取 NIR 扫描数据")
+                    with: BluetoothError.timeout(L10n.t("bt.op.nir_data"))
                 )
             }
         } catch {
@@ -427,7 +433,7 @@ final class BluetoothManager: NSObject {
                 guard nirBuiltinBuffer.count == 3822, let device = connectedDevice else {
                     failBuiltin(
                         with: BluetoothError.invalidData(
-                            "NIR 内置参考长度为 \(nirBuiltinBuffer.count)，应为 3822"
+                            L10n.t("bt.nir_builtin_len", nirBuiltinBuffer.count)
                         )
                     )
                     return
@@ -452,7 +458,7 @@ final class BluetoothManager: NSObject {
         if packetNumber == 202 {
             guard nirBuffer.count == 3822 else {
                 failCurrentNIRScan(
-                    with: BluetoothError.invalidData("NIR 光谱长度为 \(nirBuffer.count)，应为 3822")
+                    with: BluetoothError.invalidData(L10n.t("bt.nir_scan_len", nirBuffer.count))
                 )
                 return
             }
@@ -475,8 +481,8 @@ final class BluetoothManager: NSObject {
         operation = .irHardwareCollecting
         irMeasurementGroups.removeAll()
         onHardwareScanStarted?()
-        startTimeout(seconds: 15, operationName: "IR2210 扫描") { [weak self] in
-            self?.failCurrentIRScan(with: BluetoothError.timeout("IR2210 扫描"))
+        startTimeout(seconds: 15, operationName: L10n.t("bt.op.ir_scan")) { [weak self] in
+            self?.failCurrentIRScan(with: BluetoothError.timeout(L10n.t("bt.op.ir_scan")))
         }
     }
 
@@ -484,7 +490,7 @@ final class BluetoothManager: NSObject {
         var values: [Double] = []
         for group in 1 ... 64 {
             guard let payload = irMeasurementGroups[group], payload.count == 8 else {
-                failCurrentIRScan(with: BluetoothError.invalidData("IR2210 光谱分包不完整"))
+                failCurrentIRScan(with: BluetoothError.invalidData(L10n.t("bt.ir_incomplete")))
                 return
             }
             stride(from: 0, to: 8, by: 2).forEach { index in
@@ -526,7 +532,7 @@ final class BluetoothManager: NSObject {
                     let serial = String(bytes: first + second, encoding: .ascii)?
                         .trimmingCharacters(in: .controlCharacters) ?? ""
                     guard !serial.isEmpty else {
-                        failIdentity(with: BluetoothError.invalidData("IR2210 序列号为空"))
+                        failIdentity(with: BluetoothError.invalidData(L10n.t("bt.ir_empty_sn")))
                         return
                     }
                     completeIdentity(
@@ -674,13 +680,13 @@ extension BluetoothManager: CBCentralManagerDelegate {
         switch central.state {
         case .poweredOn: status = .ready
         case .poweredOff:
-            status = .unavailable("蓝牙已关闭")
+            status = .poweredOff
             failAllPending(with: .notReady)
         case .unauthorized:
-            status = .unavailable("请在系统设置中允许蓝牙访问")
+            status = .unauthorized
             failAllPending(with: .notReady)
         case .unsupported:
-            status = .unavailable("此设备不支持蓝牙")
+            status = .unsupported
             failAllPending(with: .notReady)
         case .resetting:
             status = .unknown
@@ -717,7 +723,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
         error: Error?
     ) {
         connectedDevice = nil
-        failConnection(with: .connectionFailed(error?.localizedDescription ?? "未知原因"))
+        failConnection(with: .connectionFailed(error?.localizedDescription ?? L10n.t("bt.unknown")))
     }
 
     func centralManager(
@@ -730,14 +736,14 @@ extension BluetoothManager: CBCentralManagerDelegate {
             connectedDevice = nil
             connectedIdentity = nil
         }
-        failAllPending(with: .connectionFailed(error?.localizedDescription ?? "设备已断开"))
+        failAllPending(with: .connectionFailed(error?.localizedDescription ?? L10n.t("bt.disconnected")))
     }
 }
 
 extension BluetoothManager: CBPeripheralDelegate {
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard error == nil, let services = peripheral.services, !services.isEmpty else {
-            failConnection(with: .connectionFailed(error?.localizedDescription ?? "未发现设备服务"))
+            failConnection(with: .connectionFailed(error?.localizedDescription ?? L10n.t("bt.no_service")))
             return
         }
         pendingServiceCount = services.count
@@ -783,7 +789,7 @@ extension BluetoothManager: MeasurementServicing {
               let peripheral = peripherals[device.id]
         else { throw BluetoothError.deviceLost }
         guard scanContinuation == nil, operation == .idle else {
-            throw BluetoothError.connectionFailed("已有扫描正在进行")
+            throw BluetoothError.connectionFailed(L10n.t("bt.busy_scan"))
         }
 
         return try await withCheckedThrowingContinuation { continuation in
@@ -801,8 +807,8 @@ extension BluetoothManager: MeasurementServicing {
                 nirBuffer.removeAll()
                 do {
                     try write(Data([0x00]), to: start, on: peripheral)
-                    startTimeout(seconds: 30, operationName: "NIR 扫描") { [weak self] in
-                        self?.failScan(with: BluetoothError.timeout("NIR 扫描"))
+                    startTimeout(seconds: 30, operationName: L10n.t("bt.op.nir_scan")) { [weak self] in
+                        self?.failScan(with: BluetoothError.timeout(L10n.t("bt.op.nir_scan")))
                     }
                 } catch {
                     failScan(with: error)
@@ -811,8 +817,8 @@ extension BluetoothManager: MeasurementServicing {
                 operation = .irCollecting
                 irMeasurementGroups.removeAll()
                 irAssembler.reset()
-                startTimeout(seconds: 12, operationName: "IR2210 扫描") { [weak self] in
-                    self?.failScan(with: BluetoothError.timeout("IR2210 扫描"))
+                startTimeout(seconds: 12, operationName: L10n.t("bt.op.ir_scan")) { [weak self] in
+                    self?.failScan(with: BluetoothError.timeout(L10n.t("bt.op.ir_scan")))
                 }
                 Task { @MainActor [weak self] in
                     try? await Task.sleep(nanoseconds: 100_000_000)

@@ -42,7 +42,7 @@ struct ProjectSwitcherButton: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: "square.grid.2x2")
-                Text(project.rawValue)
+                Text(L10n.t(project.titleKey))
                     .fontWeight(.semibold)
                 Image(systemName: "chevron.down")
                     .font(.caption)
@@ -64,7 +64,7 @@ struct SignalIndicator: View {
                     .frame(width: 3, height: CGFloat(5 + item * 3))
             }
         }
-        .accessibilityLabel("信号强度 \(level) 格")
+        .accessibilityLabel(L10n.t("a11y.signal", level))
     }
 }
 

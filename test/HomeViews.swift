@@ -26,19 +26,19 @@ struct HomeFlowView: View {
                         Button {
                             app.resetHome()
                         } label: {
-                            Label("返回", systemImage: "chevron.left")
+                            Label(app.t("common.back"), systemImage: "chevron.left")
                         }
                     case .modeSelection:
                         Button {
                             app.returnToDiscovery()
                         } label: {
-                            Label("返回", systemImage: "chevron.left")
+                            Label(app.t("common.back"), systemImage: "chevron.left")
                         }
                     case .workbench:
                         Button {
                             app.leaveWorkbench()
                         } label: {
-                            Label("返回", systemImage: "chevron.left")
+                            Label(app.t("common.back"), systemImage: "chevron.left")
                         }
                     }
                 }
@@ -67,7 +67,7 @@ struct ProjectGridView: View {
                                 Image(systemName: project.systemImage)
                                     .font(.system(size: 34, weight: .medium))
                                     .foregroundStyle(project.isAvailable ? FabricTheme.indigo : .secondary)
-                                Text(project.name)
+                                Text(app.t(project.titleKey))
                                     .font(.headline)
                                     .foregroundStyle(project.isAvailable ? .primary : .secondary)
                             }
@@ -82,7 +82,7 @@ struct ProjectGridView: View {
                 .padding()
             }
         }
-        .navigationTitle("首页")
+        .navigationTitle(app.t("project.home"))
     }
 }
 
@@ -100,11 +100,11 @@ struct DeviceDiscoveryView: View {
 
                 if app.bluetooth.nearbyDevices.isEmpty {
                     ContentUnavailableView {
-                        Label("附近没有设备", systemImage: "dot.radiowaves.left.and.right")
+                        Label(app.t("discovery.empty"), systemImage: "dot.radiowaves.left.and.right")
                     } description: {
-                        Text("请打开 NIR 或 IR2210 设备并保持在附近")
+                        Text(app.t("discovery.empty_hint"))
                     } actions: {
-                        Button("重新扫描") { app.bluetooth.startScanning() }
+                        Button(app.t("discovery.rescan")) { app.bluetooth.startScanning() }
                             .buttonStyle(.borderedProminent)
                     }
                     .listRowSeparator(.hidden)
@@ -126,7 +126,7 @@ struct DeviceDiscoveryView: View {
                 app.bluetooth.startScanning()
             }
         }
-        .navigationTitle("发现设备")
+        .navigationTitle(app.t("discovery.title"))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -145,29 +145,29 @@ struct DeviceDiscoveryView: View {
             }
         }
         .confirmationDialog(
-            "绑定这台设备？",
+            app.t("discovery.bind_title"),
             isPresented: Binding(
                 get: { app.pendingBinding },
                 set: { app.pendingBinding = $0 }
             ),
             titleVisibility: .visible
         ) {
-            Button("绑定并继续") {
+            Button(app.t("discovery.bind_continue")) {
                 Task { await app.bindSelectedDevice() }
             }
-            Button("取消", role: .cancel) {
+            Button(app.t("common.cancel"), role: .cancel) {
                 app.bluetooth.disconnect()
                 app.selectedDevice = nil
             }
         } message: {
-            Text("设备尚未激活，将绑定到当前手机号。")
+            Text(app.t("discovery.bind_message"))
         }
     }
 
     private var bluetoothBanner: some View {
         HStack {
             Image(systemName: app.bluetooth.status == .ready ? "bluetooth" : "exclamationmark.triangle")
-            Text(app.bluetooth.isScanning ? "正在扫描附近设备…" : app.bluetooth.status.message)
+            Text(bluetoothStatusText)
             Spacer()
             if app.bluetooth.isScanning {
                 ProgressView()
@@ -177,6 +177,20 @@ struct DeviceDiscoveryView: View {
         .font(.subheadline)
         .foregroundStyle(app.bluetooth.status == .ready ? FabricTheme.indigo : .orange)
         .padding()
+    }
+
+    private var bluetoothStatusText: String {
+        if app.bluetooth.isScanning {
+            return app.t("discovery.scanning")
+        }
+        switch app.bluetooth.status {
+        case .unknown: return app.t("bt.checking")
+        case .ready: return app.t("bt.ready")
+        case .poweredOff: return app.t("bt.off")
+        case .unauthorized: return app.t("bt.unauthorized")
+        case .unsupported: return app.t("bt.unsupported")
+        case let .unavailable(message): return message
+        }
     }
 }
 
@@ -238,7 +252,7 @@ struct ModeSelectionView: View {
                                     Text(mode.name)
                                         .font(.headline)
                                         .foregroundStyle(.primary)
-                                    Text("本月已使用 \(mode.monthlyUseCount) 次")
+                                    Text(app.t("mode.monthly_use", mode.monthlyUseCount))
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
                                 }
@@ -254,7 +268,7 @@ struct ModeSelectionView: View {
                 .padding()
             }
         }
-        .navigationTitle("选择分析模式")
+        .navigationTitle(app.t("mode.title"))
     }
 
     private func icon(for mode: AnalysisMode) -> String {
@@ -284,7 +298,7 @@ struct MeasurementWorkbenchView: View {
                 .padding()
             }
         }
-        .navigationTitle(app.selectedMode?.name ?? "检测")
+        .navigationTitle(app.selectedMode?.name ?? app.t("workbench.inspect"))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showsDeviceSettings) {
             DeviceSettingsView()
@@ -294,9 +308,9 @@ struct MeasurementWorkbenchView: View {
     private var deviceHeader: some View {
         HStack {
             VStack(alignment: .leading, spacing: 5) {
-                Text(app.selectedDevice?.name ?? "未连接设备")
+                Text(app.selectedDevice?.name ?? app.t("workbench.disconnected"))
                     .font(.headline)
-                Label("已连接", systemImage: "checkmark.circle.fill")
+                Label(app.t("workbench.connected"), systemImage: "checkmark.circle.fill")
                     .font(.caption)
                     .foregroundStyle(.green)
             }
@@ -310,9 +324,9 @@ struct MeasurementWorkbenchView: View {
 
     private var controls: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("检测设置")
+            Text(app.t("workbench.settings"))
                 .font(.headline)
-            Picker("扫描方式", selection: Binding(
+            Picker(app.t("workbench.scan_mode"), selection: Binding(
                 get: { app.scanMode },
                 set: {
                     app.scanMode = $0
@@ -320,12 +334,12 @@ struct MeasurementWorkbenchView: View {
                 }
             )) {
                 ForEach(ScanMode.allCases) { mode in
-                    Text(mode.rawValue).tag(mode)
+                    Text(app.t(mode.titleKey)).tag(mode)
                 }
             }
             .pickerStyle(.segmented)
 
-            Picker("校准方式", selection: Binding(
+            Picker(app.t("workbench.calibration"), selection: Binding(
                 get: { app.calibrationMode },
                 set: {
                     app.calibrationMode = $0
@@ -333,7 +347,7 @@ struct MeasurementWorkbenchView: View {
                 }
             )) {
                 ForEach(CalibrationMode.allCases) { mode in
-                    Text(mode.rawValue).tag(mode)
+                    Text(app.t(mode.titleKey)).tag(mode)
                 }
             }
 
@@ -341,7 +355,7 @@ struct MeasurementWorkbenchView: View {
                 Button {
                     Task { await app.runCalibration() }
                 } label: {
-                    Label("开始手动校准", systemImage: "scope")
+                    Label(app.t("workbench.start_manual_cal"), systemImage: "scope")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -366,21 +380,21 @@ struct MeasurementWorkbenchView: View {
             .padding(.top, 4)
 
             if app.scanMode == .multiple {
-                Text("已采集 \(app.captures.count) / 9 次")
+                Text(app.t("workbench.collected", app.captures.count))
                     .font(.headline.monospacedDigit())
             } else {
-                Text("将完成扫描并立即预测")
+                Text(app.t("workbench.scan_and_predict"))
                     .foregroundStyle(.secondary)
             }
 
-            Label("也可按设备实体扫描键", systemImage: "hand.tap")
+            Label(app.t("workbench.hardware_hint"), systemImage: "hand.tap")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             Button {
                 Task { await app.runScan() }
             } label: {
-                Text(app.isBusy ? app.busyTitle : "开始扫描")
+                Text(app.isBusy ? app.busyTitle : app.t("workbench.start_scan"))
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 5)
@@ -393,13 +407,13 @@ struct MeasurementWorkbenchView: View {
                 Button {
                     Task { await app.predictMultiple() }
                 } label: {
-                    Label("对 \(app.captures.count) 次采集进行预测", systemImage: "sparkles")
+                    Label(app.t("workbench.predict_n", app.captures.count), systemImage: "sparkles")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
                 .disabled(app.captures.count < 2 || app.isBusy)
 
-                Button("清空已采集数据", role: .destructive) {
+                Button(app.t("workbench.clear"), role: .destructive) {
                     app.clearMeasurements()
                 }
             }
@@ -410,7 +424,7 @@ struct MeasurementWorkbenchView: View {
     private func resultCard(_ result: MeasurementResult) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("分析结果", systemImage: "checkmark.seal.fill")
+                Label(app.t("workbench.result"), systemImage: "checkmark.seal.fill")
                     .font(.headline)
                     .foregroundStyle(FabricTheme.cyan)
                 Spacer()
@@ -421,7 +435,7 @@ struct MeasurementWorkbenchView: View {
             Text(result.summary)
                 .font(.title3.bold())
             if app.scanMode == .multiple {
-                Text("结果基于 \(app.captures.count) 次采集")
+                Text(app.t("workbench.result_based", app.captures.count))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -435,16 +449,16 @@ struct MeasurementWorkbenchView: View {
         if app.permissions.canSaveSpectrum
             || app.permissions.canConfigureDevice {
             VStack(alignment: .leading, spacing: 12) {
-                Text("更多操作")
+                Text(app.t("workbench.more"))
                     .font(.headline)
                 if app.permissions.canSaveSpectrum {
-                    Button("保存谱线与多点数据", systemImage: "square.and.arrow.down") {
-                        app.noticeMessage = "保存功能将在真实预测接口接入后启用"
+                    Button(app.t("workbench.save_spectrum"), systemImage: "square.and.arrow.down") {
+                        app.noticeMessage = app.t("workbench.save_pending")
                     }
                 }
                 if app.selectedDevice?.kind == .ir2210,
                    app.permissions.canConfigureDevice {
-                    Button("IR2210 设备配置", systemImage: "slider.horizontal.3") {
+                    Button(app.t("workbench.ir_config"), systemImage: "slider.horizontal.3") {
                         showsDeviceSettings = true
                     }
                 }
@@ -456,6 +470,7 @@ struct MeasurementWorkbenchView: View {
 }
 
 private struct DeviceSettingsView: View {
+    @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @State private var integrationTime = 10.0
     @State private var instantLight = true
@@ -465,29 +480,29 @@ private struct DeviceSettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("采集参数") {
-                    LabeledContent("积分时间", value: "\(Int(integrationTime)) ms")
+                Section(app.t("device.settings.params")) {
+                    LabeledContent(app.t("device.settings.integration"), value: "\(Int(integrationTime)) ms")
                     Slider(value: $integrationTime, in: 1 ... 50, step: 1)
-                    Toggle("即测即亮", isOn: $instantLight)
-                    Toggle("多次均值", isOn: $averageEnabled)
-                    Stepper("均值次数：\(averageCount)", value: $averageCount, in: 2 ... 10)
+                    Toggle(app.t("device.settings.instant"), isOn: $instantLight)
+                    Toggle(app.t("device.settings.average"), isOn: $averageEnabled)
+                    Stepper(app.t("device.settings.average_count", averageCount), value: $averageCount, in: 2 ... 10)
                         .disabled(!averageEnabled)
                 }
-                Section("校准") {
-                    Button("TI 默认参考") {}
-                    Button("奥普默认参考") {}
-                    Button("暗电流校准") {}
+                Section(app.t("device.settings.cal")) {
+                    Button(app.t("device.settings.ti")) {}
+                    Button(app.t("device.settings.aopu")) {}
+                    Button(app.t("device.settings.dark")) {}
                 }
                 Section {
-                    Button("保存配置") { dismiss() }
+                    Button(app.t("device.settings.save")) { dismiss() }
                         .frame(maxWidth: .infinity)
                 }
             }
-            .navigationTitle("设备配置")
+            .navigationTitle(app.t("device.settings.title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
+                    Button(app.t("common.close")) { dismiss() }
                 }
             }
         }

@@ -255,14 +255,14 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
         }
 
         guard response.status else {
-            throw AppServiceError.unavailable(response.error ?? "获取设备信息失败")
+            throw AppServiceError.unavailable(response.error ?? L10n.t("error.device_info"))
         }
 
         let availability: DeviceAvailability
         switch response.deviceStatus {
         case 1: availability = .available
         case 0: availability = .unbound
-        default: availability = .blocked(response.info ?? response.error ?? "设备当前不可用")
+        default: availability = .blocked(response.info ?? response.error ?? L10n.t("error.device_unavailable"))
         }
         return DeviceInspection(
             availability: availability,
@@ -281,7 +281,7 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
             body: BindDeviceRequest(session: session, identity: identity)
         )
         guard response.status else {
-            throw AppServiceError.unavailable(response.error ?? "设备绑定失败")
+            throw AppServiceError.unavailable(response.error ?? L10n.t("error.bind_failed"))
         }
         return Self.modes(from: response.permission)
     }
@@ -292,7 +292,7 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
             query: [session.accountQueryItem]
         )
         guard response.status else {
-            throw AppServiceError.unavailable(response.error ?? "获取设备列表失败")
+            throw AppServiceError.unavailable(response.error ?? L10n.t("error.device_list"))
         }
         return response.devices.map(\.model)
     }
@@ -308,7 +308,7 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
             )
         )
         guard response.status else {
-            throw AppServiceError.unavailable(response.error ?? "获取共享用户失败")
+            throw AppServiceError.unavailable(response.error ?? L10n.t("error.shared_users"))
         }
         return (response.sharedUser ?? []).map(SharedUser.init(phoneNumber:))
     }
@@ -324,7 +324,7 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
             )
         )
         guard response.status else {
-            throw AppServiceError.unavailable(response.error ?? "分享设备失败")
+            throw AppServiceError.unavailable(response.error ?? L10n.t("error.share_failed"))
         }
     }
 
@@ -339,7 +339,7 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
             )
         )
         guard response.status else {
-            throw AppServiceError.unavailable(response.error ?? "取消分享失败")
+            throw AppServiceError.unavailable(response.error ?? L10n.t("error.revoke_failed"))
         }
     }
 
@@ -356,9 +356,7 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
         var request = URLRequest(url: configuration.baseURL.appendingPathComponent(path))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let token = configuration.authStore.token, !token.isEmpty {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
+        request.applyAPIHeaders(token: configuration.authStore.token)
         request.httpBody = try JSONEncoder().encode(body)
         return try await send(request)
     }
@@ -373,12 +371,10 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
         )
         components?.queryItems = query
         guard let url = components?.url else {
-            throw AppServiceError.unavailable("接口地址无效")
+            throw AppServiceError.unavailable(L10n.t("error.invalid_url"))
         }
         var request = URLRequest(url: url)
-        if let token = configuration.authStore.token, !token.isEmpty {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
+        request.applyAPIHeaders(token: configuration.authStore.token)
         return try await send(request)
     }
 
@@ -386,24 +382,24 @@ final class LegacyDeviceAPI: DeviceAPIServicing {
         do {
             let (data, response) = try await urlSession.data(for: request)
             guard let http = response as? HTTPURLResponse else {
-                throw AppServiceError.unavailable("服务器响应无效")
+                throw AppServiceError.unavailable(L10n.t("error.invalid_response"))
             }
             if http.statusCode == 401 {
                 throw AppServiceError.unauthorized
             }
             guard 200 ..< 300 ~= http.statusCode else {
                 let message = http.statusCode >= 500
-                    ? "服务器内部错误（HTTP \(http.statusCode)），请联系后台管理员"
-                    : "接口请求失败（HTTP \(http.statusCode)）"
+                    ? L10n.t("error.http_500", http.statusCode)
+                    : L10n.t("error.http", http.statusCode)
                 throw AppServiceError.unavailable(message)
             }
             return try JSONDecoder().decode(Response.self, from: data)
         } catch let error as AppServiceError {
             throw error
         } catch let error as DecodingError {
-            throw AppServiceError.unavailable("服务器返回数据格式不正确：\(error.localizedDescription)")
+            throw AppServiceError.unavailable(L10n.t("error.decode_detail", error.localizedDescription))
         } catch {
-            throw AppServiceError.unavailable("无法连接服务器：\(error.localizedDescription)")
+            throw AppServiceError.unavailable(L10n.t("error.connect", error.localizedDescription))
         }
     }
 }

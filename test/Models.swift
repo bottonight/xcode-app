@@ -9,8 +9,8 @@ enum AppProject: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var isAvailable: Bool { self == .compositionAnalysis }
 
-    var name: String {
-        isAvailable ? "成分分析" : "敬请期待"
+    var titleKey: String {
+        isAvailable ? "project.composition" : "project.coming_soon"
     }
 
     var systemImage: String {
@@ -176,17 +176,31 @@ struct AnalysisMode: Identifiable, Hashable, Codable {
 }
 
 enum ScanMode: String, CaseIterable, Identifiable {
-    case single = "单次扫描"
-    case multiple = "多次扫描"
+    case single
+    case multiple
 
     var id: String { rawValue }
+
+    var titleKey: String {
+        switch self {
+        case .single: "scan.single"
+        case .multiple: "scan.multiple"
+        }
+    }
 }
 
 enum CalibrationMode: String, CaseIterable, Identifiable {
-    case builtIn = "默认校准"
-    case manual = "手动校准"
+    case builtIn
+    case manual
 
     var id: String { rawValue }
+
+    var titleKey: String {
+        switch self {
+        case .builtIn: "cal.builtin"
+        case .manual: "cal.manual"
+        }
+    }
 }
 
 struct SpectrumPoint: Identifiable, Hashable {

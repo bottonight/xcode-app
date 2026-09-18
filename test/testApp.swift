@@ -15,6 +15,7 @@ struct FabricLabApp: App {
         WindowGroup {
             ContentView()
                 .environment(appModel)
+                .environment(\.locale, appModel.language.locale)
         }
     }
 }

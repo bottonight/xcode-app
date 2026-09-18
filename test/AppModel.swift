@@ -18,9 +18,16 @@ final class AppModel {
     var predictionResult: MeasurementResult?
     var managedDevices: [ManagedDevice] = []
     var isBusy = false
-    var busyTitle = "正在处理"
+    var busyTitle = L10n.t("busy.processing")
     var errorMessage: String?
     var noticeMessage: String?
+    var language = AppLanguageStore.load() {
+        didSet {
+            guard oldValue != language else { return }
+            AppLanguageStore.save(language)
+            L10n.language = language
+        }
+    }
 
     let bluetooth: BluetoothManager
 
@@ -71,6 +78,7 @@ final class AppModel {
         self.predictionService = predictionService
         self.sessionStore = sessionStore
         self.authStore = authStore
+        L10n.language = language
         session = sessionStore.load()
         authStore.token = session?.authToken
         bluetooth.onHardwareScanStarted = { [weak self] in
@@ -96,8 +104,12 @@ final class AppModel {
         )
     }
 
+    func t(_ key: String, _ args: CVarArg...) -> String {
+        L10n.t(key, language: language, arguments: args)
+    }
+
     func login(account: String, password: String) async {
-        await perform(title: "正在登录") {
+        await perform(title: L10n.t("busy.logging_in")) {
             let identifier = try AccountIdentifier.parse(account, allowsPhone: AppRegion.isMainlandChina)
             try applyAuthenticatedSession(
                 await authAPI.login(account: identifier, password: password)
@@ -106,7 +118,7 @@ final class AppModel {
     }
 
     func sendVerificationCode(account: String) async -> Bool {
-        await perform(title: "正在发送验证码") {
+        await perform(title: L10n.t("busy.sending_code")) {
             let identifier = try AccountIdentifier.parse(account, allowsPhone: AppRegion.isMainlandChina)
             try await authAPI.sendVerificationCode(account: identifier)
         }
@@ -121,15 +133,15 @@ final class AppModel {
         company: String,
         industry: String
     ) async {
-        await perform(title: "正在注册") {
+        await perform(title: L10n.t("busy.registering")) {
             let name = username.trimmingCharacters(in: .whitespacesAndNewlines)
             let code = verificationCode.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else {
-                throw AppServiceError.unavailable("请输入用户名")
+                throw AppServiceError.unavailable(L10n.t("error.username"))
             }
             guard password.count >= 6 else { throw AppServiceError.invalidPassword }
             guard password == confirmPassword else {
-                throw AppServiceError.unavailable("两次输入的密码不一致")
+                throw AppServiceError.unavailable(L10n.t("error.password_mismatch"))
             }
             guard code.count >= 4 else { throw AppServiceError.invalidCode }
             let identifier = try AccountIdentifier.parse(account, allowsPhone: AppRegion.isMainlandChina)
@@ -199,7 +211,7 @@ final class AppModel {
                 session: session
             )
             pendingBinding = false
-            noticeMessage = "设备绑定成功"
+            noticeMessage = L10n.t("notice.bind_ok")
             enterModes(modes)
         }
     }
@@ -224,10 +236,10 @@ final class AppModel {
     func runScan() async {
         guard let session, let selectedDevice, let selectedIdentity, let selectedMode else { return }
         guard scanMode == .single || captures.count < 9 else {
-            errorMessage = "多次扫描最多保存 9 次"
+            errorMessage = L10n.t("error.max_scans")
             return
         }
-        await perform(title: "扫描中，请勿移动设备") {
+        await perform(title: L10n.t("busy.scanning")) {
             let capture = try await measurementService.scan(
                 device: selectedDevice,
                 calibration: calibrationMode
@@ -250,10 +262,10 @@ final class AppModel {
               let selectedMode,
               captures.count >= 2
         else {
-            errorMessage = "多次预测至少需要完成 2 次扫描"
+            errorMessage = L10n.t("error.min_scans")
             return
         }
-        await perform(title: "正在预测") {
+        await perform(title: L10n.t("busy.predicting")) {
             predictionResult = try await predictionService.predict(
                 captures: captures,
                 device: selectedDevice,
@@ -267,19 +279,19 @@ final class AppModel {
 
     func runCalibration() async {
         guard let selectedDevice, let selectedIdentity else { return }
-        await perform(title: "扫描中，请勿移动设备") {
+        await perform(title: L10n.t("busy.scanning")) {
             let capture = try await measurementService.scan(
                 device: selectedDevice,
                 calibration: .manual
             )
-            busyTitle = "正在处理"
+            busyTitle = L10n.t("busy.processing")
             try await predictionService.setReference(
                 capture: capture,
                 device: selectedDevice,
                 identity: selectedIdentity
             )
             clearMeasurements()
-            noticeMessage = "手动校准完成"
+            noticeMessage = L10n.t("notice.cal_ok")
         }
     }
 
@@ -304,7 +316,7 @@ final class AppModel {
         guard let session else { return false }
         return await perform {
             try await deviceAPI.share(device, with: phoneNumber, session: session)
-            noticeMessage = "设备已分享"
+            noticeMessage = L10n.t("notice.shared")
         }
     }
 
@@ -351,22 +363,22 @@ final class AppModel {
     private func beginHardwareScan() {
         guard case .workbench = homeRoute else { return }
         guard !isBusy else {
-            errorMessage = "当前任务尚未完成，请稍后再按设备扫描键"
+            errorMessage = L10n.t("error.hardware_busy")
             return
         }
         guard scanMode == .single || captures.count < 9 else {
-            errorMessage = "多次扫描最多保存 9 次"
+            errorMessage = L10n.t("error.max_scans")
             return
         }
         hardwareScanPending = true
         isBusy = true
-        busyTitle = "扫描中，请勿移动设备"
+        busyTitle = L10n.t("busy.scanning")
         errorMessage = nil
     }
 
     private func markHardwareScanProcessing() {
         guard isBusy else { return }
-        busyTitle = "处理数据中"
+        busyTitle = L10n.t("busy.processing_data")
     }
 
     private func receiveHardwareScan(_ capture: ScanCapture) async {
@@ -413,7 +425,7 @@ final class AppModel {
     ) async throws {
         if scanMode == .single {
             captures = [capture]
-            busyTitle = "正在预测"
+            busyTitle = L10n.t("busy.predicting")
             predictionResult = try await predictionService.predict(
                 captures: captures,
                 device: device,
@@ -430,11 +442,11 @@ final class AppModel {
 
     @discardableResult
     private func perform(
-        title: String = "正在处理",
+        title: String? = nil,
         _ operation: () async throws -> Void
     ) async -> Bool {
         isBusy = true
-        busyTitle = title
+        busyTitle = title ?? L10n.t("busy.processing")
         errorMessage = nil
         defer { isBusy = false }
         do {
