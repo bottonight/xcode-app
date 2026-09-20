@@ -26,6 +26,8 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>FabricLab 使用蓝牙连接 NIR 和 IR2210 设备并采集光谱数据。</string>
 	<key>CFBundleLocalizations</key>

@@ -60,11 +60,16 @@ pod install
 cd ..
 
 echo "=== flutter build ios --config-only ==="
-if [ -n "${API_BASE_URL:-}" ]; then
-  flutter build ios --config-only --release --no-codesign --dart-define="API_BASE_URL=${API_BASE_URL}"
-else
-  flutter build ios --config-only --release --no-codesign
+CONFIG_ARGS="--config-only --release --no-codesign"
+if [ -n "${CI_BUILD_NUMBER:-}" ]; then
+  echo "using Xcode Cloud build number ${CI_BUILD_NUMBER}"
+  CONFIG_ARGS="${CONFIG_ARGS} --build-number=${CI_BUILD_NUMBER}"
 fi
+if [ -n "${API_BASE_URL:-}" ]; then
+  CONFIG_ARGS="${CONFIG_ARGS} --dart-define=API_BASE_URL=${API_BASE_URL}"
+fi
+# shellcheck disable=SC2086
+flutter build ios ${CONFIG_ARGS}
 
 echo "=== ci_post_clone done ==="
 exit 0
