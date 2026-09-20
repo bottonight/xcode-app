@@ -172,7 +172,16 @@ enum AppRegion {
 struct AnalysisMode: Identifiable, Hashable, Codable {
     let id: String
     let name: String
+    let englishName: String?
     let monthlyUseCount: Int
+
+    func localizedName(for language: AppLanguage) -> String {
+        if language == .english {
+            let english = englishName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !english.isEmpty { return english }
+        }
+        return name
+    }
 }
 
 enum ScanMode: String, CaseIterable, Identifiable {

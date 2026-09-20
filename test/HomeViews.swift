@@ -249,7 +249,7 @@ struct ModeSelectionView: View {
                                     .frame(width: 44, height: 44)
                                     .background(FabricTheme.indigo.opacity(0.1), in: Circle())
                                 VStack(alignment: .leading, spacing: 5) {
-                                    Text(mode.name)
+                                    Text(mode.localizedName(for: app.language))
                                         .font(.headline)
                                         .foregroundStyle(.primary)
                                     Text(app.t("mode.monthly_use", mode.monthlyUseCount))
@@ -298,7 +298,7 @@ struct MeasurementWorkbenchView: View {
                 .padding()
             }
         }
-        .navigationTitle(app.selectedMode?.name ?? app.t("workbench.inspect"))
+        .navigationTitle(app.selectedMode?.localizedName(for: app.language) ?? app.t("workbench.inspect"))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showsDeviceSettings) {
             DeviceSettingsView()

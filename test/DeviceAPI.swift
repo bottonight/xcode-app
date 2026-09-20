@@ -2,17 +2,24 @@ import Foundation
 
 private struct DevicePermissionDTO: Decodable {
     let name: String
+    let englishName: String?
     let modelName: String
     let useCountMonth: Int
 
     enum CodingKeys: String, CodingKey {
         case name
+        case englishName = "name_en"
         case modelName = "model_name"
         case useCountMonth = "use_count_month"
     }
 
     var mode: AnalysisMode {
-        AnalysisMode(id: modelName, name: name, monthlyUseCount: useCountMonth)
+        AnalysisMode(
+            id: modelName,
+            name: name,
+            englishName: englishName,
+            monthlyUseCount: useCountMonth
+        )
     }
 }
 
