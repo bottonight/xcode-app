@@ -1,4 +1,95 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+*~
+*.orig
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ / Android Studio
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code / Cursor local settings (uncomment to keep them private)
+#.vscode/
+#.cursor/
+
+# Flutter / Dart / Pub
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+/coverage/
+.widget_preview/
+
+# Local Flutter SDK (do not commit)
+.tools/
+
+# Symbolication / obfuscation
+app.*.symbols
+app.*.map.json
+
+# Built packages accidentally dropped in the repo
+*.ipa
+*.apk
+*.aab
+*.ap_
+*.dSYM.zip
+*.xcarchive
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+android/.gradle/
+android/.kotlin/
+android/captures/
+android/local.properties
+android/key.properties
+android/.cxx/
+
+# Secrets / signing
+*.jks
+*.keystore
+.env
+.env.*
+!.env.example
+
+# Original Swift Xcode user data
 FabricLab.xcodeproj/xcuserdata/
 *.xcuserstate
 *.xcodeproj/xcuserdata/
-*.xcworkspacee/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# iOS CocoaPods / Flutter generated (also listed in ios/.gitignore)
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/ephemeral/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/Flutter.podspec
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/app.flx
+ios/Flutter/app.zip
+ios/Flutter/flutter_assets/
+ios/Runner/GeneratedPluginRegistrant.*
+ios/DerivedData/
