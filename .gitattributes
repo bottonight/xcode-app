@@ -1,0 +1,2 @@
+*.sh text eol=lf
+ios/ci_scripts/* text eol=lf
