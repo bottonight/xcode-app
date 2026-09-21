@@ -291,25 +291,6 @@ class HomePage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: Container(
-                width: 138,
-                height: 138,
-                padding: const EdgeInsets.all(1),
-                margin: const EdgeInsets.only(top: 4, bottom: 14),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: indigo.withValues(alpha: .12), width: 14),
-                ),
-                child: Container(
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(colors: [Color(0xFF596FD1), indigo]),
-                  ),
-                  child: const Icon(Icons.filter_center_focus, color: Colors.white, size: 38),
-                ),
-              ),
-            ),
             Text(
               app.multiple
                   ? app.t('workbench.collected', app.captures.length)

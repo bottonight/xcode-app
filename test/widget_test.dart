@@ -68,7 +68,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(app.multiple, true);
     expect(app.captures, isEmpty);
-    await tester.ensureVisible(find.text(app.t('workbench.start_scan')));
+    expect(find.byIcon(Icons.filter_center_focus), findsNothing);
+    expect(find.text(app.t('workbench.start_scan')), findsOneWidget);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await tester.tap(find.text(app.t('tab.account')));
