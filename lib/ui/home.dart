@@ -307,7 +307,7 @@ class HomePage extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(color: muted, fontSize: 12),
             ),
-            const SizedBox(height: 14),
+            _scanTips(context),
             FilledButton(
               onPressed: app.busy || (app.multiple && app.captures.length >= 9) ? null : app.scan,
               child: Text(app.t('workbench.start_scan')),
@@ -390,6 +390,34 @@ class HomePage extends StatelessWidget {
           ),
         ),
     ],
+  );
+  Widget _scanTips(BuildContext context) => Theme(
+    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+    child: ExpansionTile(
+      initiallyExpanded: false,
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: const EdgeInsets.only(bottom: 6),
+      expandedCrossAxisAlignment: CrossAxisAlignment.start,
+      leading: const Icon(Icons.info_outline, color: indigo, size: 22),
+      title: Text(
+        app.t('workbench.tips_title'),
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+      ),
+      subtitle: Text(
+        app.t('workbench.tips_summary'),
+        style: const TextStyle(color: muted, fontSize: 12, height: 1.35),
+      ),
+      children: [
+        for (var i = 1; i <= 3; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              '$i. ${app.t('workbench.tip_$i')}',
+              style: const TextStyle(color: Color(0xFF4A4E57), fontSize: 13, height: 1.45),
+            ),
+          ),
+      ],
+    ),
   );
   void _pending(BuildContext context) => showDialog<void>(
     context: context,

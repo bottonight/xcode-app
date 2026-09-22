@@ -69,6 +69,10 @@ void main() {
     expect(app.multiple, true);
     expect(app.captures, isEmpty);
     expect(find.byIcon(Icons.filter_center_focus), findsNothing);
+    expect(find.text(app.t('workbench.tips_title')), findsOneWidget);
+    await tester.tap(find.text(app.t('workbench.tips_title')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining(app.t('workbench.tip_1')), findsOneWidget);
     expect(find.text(app.t('workbench.start_scan')), findsOneWidget);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
