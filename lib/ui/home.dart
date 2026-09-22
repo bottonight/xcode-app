@@ -240,7 +240,11 @@ class HomePage extends StatelessWidget {
                 ],
               ),
             ),
-            Text(app.selectedDevice?.kind.label ?? '', style: const TextStyle(color: muted)),
+            IconButton(
+              tooltip: app.t('workbench.device_settings'),
+              onPressed: () => _openDeviceSettings(context),
+              icon: const Icon(Icons.settings, color: indigo),
+            ),
           ],
         ),
       ),
@@ -262,28 +266,6 @@ class HomePage extends StatelessWidget {
                 app.clearMeasurements();
               },
             ),
-            const SizedBox(height: 14),
-            DropdownButtonFormField<bool>(
-              initialValue: app.defaultReference,
-              isExpanded: true,
-              decoration: InputDecoration(labelText: app.t('workbench.calibration')),
-              items: [
-                DropdownMenuItem(value: true, child: Text(app.t('cal.builtin'))),
-                DropdownMenuItem(value: false, child: Text(app.t('cal.manual'))),
-              ],
-              onChanged: (value) {
-                app.defaultReference = value!;
-                app.clearMeasurements();
-              },
-            ),
-            if (!app.defaultReference) ...[
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: app.calibrate,
-                icon: const Icon(Icons.center_focus_strong),
-                label: Text(app.t('workbench.start_manual_cal')),
-              ),
-            ],
           ],
         ),
       ),
@@ -291,26 +273,24 @@ class HomePage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              app.multiple
-                  ? app.t('workbench.collected', app.captures.length)
-                  : app.t('workbench.scan_and_predict'),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: app.multiple ? Colors.black87 : muted,
-                fontWeight: app.multiple ? FontWeight.w600 : FontWeight.normal,
+            if (app.multiple) ...[
+              Text(
+                app.t('workbench.collected', app.captures.length),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
               ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              app.t('workbench.hardware_hint'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: muted, fontSize: 12),
-            ),
+              const SizedBox(height: 8),
+            ],
             _scanTips(context),
             FilledButton(
               onPressed: app.busy || (app.multiple && app.captures.length >= 9) ? null : app.scan,
               child: Text(app.t('workbench.start_scan')),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              app.t('workbench.hardware_hint'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: muted, fontSize: 12),
             ),
             if (app.multiple && app.captures.isNotEmpty) ...[
               const SizedBox(height: 8),
@@ -419,6 +399,55 @@ class HomePage extends StatelessWidget {
       ],
     ),
   );
+  void _openDeviceSettings(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(app.t('workbench.device_settings')),
+        content: ListenableBuilder(
+          listenable: app,
+          builder: (context, _) => SizedBox(
+            width: 360,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                DropdownButtonFormField<bool>(
+                  key: ValueKey(app.defaultReference),
+                  initialValue: app.defaultReference,
+                  isExpanded: true,
+                  decoration: InputDecoration(labelText: app.t('workbench.calibration')),
+                  items: [
+                    DropdownMenuItem(value: true, child: Text(app.t('cal.builtin'))),
+                    DropdownMenuItem(value: false, child: Text(app.t('cal.manual'))),
+                  ],
+                  onChanged: (value) {
+                    app.defaultReference = value!;
+                    app.clearMeasurements();
+                  },
+                ),
+                if (!app.defaultReference) ...[
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: app.calibrate,
+                    icon: const Icon(Icons.center_focus_strong),
+                    label: Text(app.t('workbench.start_manual_cal')),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(app.t('common.done')),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _pending(BuildContext context) => showDialog<void>(
     context: context,
     builder: (_) => AlertDialog(

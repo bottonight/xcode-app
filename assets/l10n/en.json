@@ -32,6 +32,7 @@
   "workbench.collected": "Collected %d / 9",
   "workbench.scan_and_predict": "Scan will run prediction immediately",
   "workbench.hardware_hint": "You can also press the device scan button",
+  "workbench.device_settings": "Device settings",
   "workbench.tips_title": "Measurement notes",
   "workbench.tips_summary": "Results cover the probe area only. Tap for details.",
   "workbench.tip_1": "Results are the average fiber composition under the probe, not a reading for the whole fabric.",

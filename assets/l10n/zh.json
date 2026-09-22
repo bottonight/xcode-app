@@ -32,6 +32,7 @@
   "workbench.collected": "已采集 %d / 9 次",
   "workbench.scan_and_predict": "将完成扫描并立即预测",
   "workbench.hardware_hint": "也可按设备实体扫描键",
+  "workbench.device_settings": "设备设置",
   "workbench.tips_title": "测量须知",
   "workbench.tips_summary": "结果仅代表探测口区域，点开查看完整说明",
   "workbench.tip_1": "分析结果只代表探测口覆盖区域的纤维平均成分，不能当作整件面料的结论。",

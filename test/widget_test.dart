@@ -64,6 +64,14 @@ void main() {
     app.chooseMode(const AnalysisMode('cotton', '成分分析', 'Composition', 0));
     await tester.pumpAndSettle();
     expect(find.text(app.t('workbench.settings')), findsOneWidget);
+    expect(find.text(app.t('workbench.scan_and_predict')), findsNothing);
+    expect(find.byIcon(Icons.settings), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.settings));
+    await tester.pumpAndSettle();
+    expect(find.text(app.t('workbench.device_settings')), findsOneWidget);
+    expect(find.text(app.t('workbench.calibration')), findsOneWidget);
+    await tester.tap(find.text(app.t('common.done')));
+    await tester.pumpAndSettle();
     await tester.tap(find.text(app.t('scan.multiple')));
     await tester.pumpAndSettle();
     expect(app.multiple, true);
