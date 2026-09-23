@@ -102,4 +102,20 @@ void main() {
     expect(ble.acceptsHardwareScan!(), true);
     app.dispose();
   });
+  test('Stored sessions keep their token without a client-side expiry field', () {
+    const session = UserSession(
+      userId: '1',
+      phone: '13800138000',
+      email: '',
+      username: 'Test',
+      token: 't',
+      adminLevel: 0,
+    );
+    expect(session.toJson().containsKey('savedAt'), isFalse);
+    expect(
+      UserSession.fromJson({...session.toJson(), 'savedAt': '2020-01-01T00:00:00.000'}).token,
+      't',
+    );
+    expect(session.copyWith(username: 'New').username, 'New');
+  });
 }

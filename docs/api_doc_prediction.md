@@ -31,20 +31,6 @@
 
 `data` 共 3822 个 0–255 整数。多次 N 次则把 N 段 3822 点 **首尾拼成一条一维数组**，长度 `3822 * N`。
 
-`is_qt=true` 时不是字节流，而是波长/强度：
-
-```json
-{
-  "data": {
-    "w": [900.0],
-    "i": [1200]
-  }
-}
-```
-
-- `w`：228 个波长（多次扫描复用前 228 个）
-- `i`：单次 228 个强度；多次为 `228 * N` 拼接
-
 ### IR2210 `intensity`（`/IR2210Prediction`）
 
 已是强度值，固定 **256** 点。单次一维，多次二维。用 `intensity[0]` 是数字还是数组来区分。波长不随请求传，使用设备参考光谱中的 `w`。
@@ -79,11 +65,10 @@
 - **方法**: POST
 - **描述**: 设置/更新设备参考光谱（校准）
 - **参数** (json):
-  - data: 参考光谱。普通设备为单次 NIR 原始字节流（长度 3822，见文首「扫描数据格式」）；`is_qt=true` 时直接作为 `{w, i}` 写入
+  - data: 参考光谱。普通设备为单次 NIR 原始字节流（长度 3822，见文首「扫描数据格式」）
   - mac_NIR
   - serial_number（可选，优先用于查找）
   - uuid（可选）
-  - is_qt（可选）
 - **返回**:
   - status: `succeed`
   - error: `null`
@@ -143,8 +128,8 @@
 - **方法**: POST
 - **描述**: 查看光谱图（吸光度/反射率），返回 base64 图片
 - **参数** (json):
-  - data: 扫描光谱，格式见文首「NIR `data`」（单次 3822，多次 `3822 * N` 拼接；QT 为 `{w, i}`）
-  - mac_NIR / serial_number / is_builtin / builtin / uuid / is_qt 等（与 `/Prediction` 类似）
+  - data: 扫描光谱，格式见文首「NIR `data`」（单次 3822，多次 `3822 * N` 拼接）
+  - mac_NIR / serial_number / is_builtin / builtin / uuid 等（与 `/Prediction` 类似）
   - openid（可空）
   - phone_number **或** email（openid 为空时必填其一）
 - **返回**:
@@ -159,14 +144,12 @@
 - **描述**: 通用成分预测（走模型透传服务 `NIR_model_url1`）
 - **参数** (json):
   - data: 扫描光谱，格式见文首「NIR `data`」（单次 3822 点；多次为 `3822 * N` 一维拼接）
-  - mac_NIR
   - model_name: 如 `JYS` / `S` 等
-  - openid（可空）
-  - phone_number **或** email（openid 为空时必填其一）
   - serial_number
   - is_builtin / builtin（可选）
   - view_spectrum（可选）: 是否返回光谱图
-  - uuid / is_qt（QT 场景）
+  - uuid（可选）
+  - 用户从登录 token 取 `user_id`，不再传 openid / 手机号 / 邮箱
 - **返回**:
   - result: 中文成分字符串（经 Decoder）
   - pre_id
@@ -213,7 +196,6 @@
 - **描述**: 查询普通设备校准创建/修改时间
 - **参数** (json):
   - mac_NIR
-  - uuid / is_qt（可选）
 - **返回**:
   - create_time / modify_time
   - status: `succeed`

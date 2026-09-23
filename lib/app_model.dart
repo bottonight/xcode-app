@@ -92,20 +92,50 @@ class AppModel extends ChangeNotifier {
     try {
       _preferences = await SharedPreferences.getInstance();
       english = _preferences!.getBool('english') ?? !allowsPhone;
+      api.language = english ? 'en' : 'zh-Hans';
       final stored = await _secure.read(key: 'user-session');
       if (stored != null) {
-        session = UserSession.fromJson(jsonDecode(stored) as Map<String, dynamic>);
-        if (session!.token.isEmpty) session = null;
+        final restored = UserSession.fromJson(jsonDecode(stored) as Map<String, dynamic>);
+        if (restored.token.isEmpty) {
+          await _secure.delete(key: 'user-session');
+        } else {
+          await _restoreWithAutoLogin(restored.token);
+        }
       }
     } catch (_) {
-      message = english
-          ? 'Unable to restore the saved session. Please sign in again.'
-          : '无法恢复已保存的登录信息，请重新登录。';
+      api.token = null;
+      session = null;
+      message = t('error.auto_login_failed');
     }
-    api.token = session?.token;
-    api.language = english ? 'en' : 'zh-Hans';
     initialized = true;
     notifyListeners();
+  }
+
+  Future<void> _restoreWithAutoLogin(String token) async {
+    api.token = token;
+    try {
+      final restored = await api.autoLogin(token);
+      await _persist(restored);
+    } on AppException catch (error) {
+      api.token = null;
+      session = null;
+      if (error.key == 'error.unauthorized') {
+        await _secure.delete(key: 'user-session');
+        message = t('error.unauthorized');
+      } else {
+        message = error.key == 'server' ? '${error.detail}' : t('error.auto_login_failed');
+      }
+    } catch (_) {
+      api.token = null;
+      session = null;
+      message = t('error.auto_login_failed');
+    }
+  }
+
+  Future<void> _persist(UserSession value) async {
+    session = value;
+    api.token = value.token;
+    await _secure.write(key: 'user-session', value: jsonEncode(value.toJson()));
   }
 
   Future<void> setLanguage(bool value) async {
@@ -156,7 +186,6 @@ class AppModel extends ChangeNotifier {
   }) => perform(() async {
     if (password.length < 6) throw const AppException('error.invalid_password');
     if (username != null) {
-      if (username.trim().isEmpty) throw const AppException('error.username');
       if (password != confirm) {
         throw const AppException('error.password_mismatch');
       }
@@ -164,22 +193,40 @@ class AppModel extends ChangeNotifier {
         throw const AppException('error.invalid_code');
       }
     }
-    final authenticated = await api.authenticate(
-      AccountIdentifier.parse(account, allowsPhone: allowsPhone),
-      password,
-      username: username?.trim(),
-      code: code?.trim(),
-      company: company.trim(),
-      industry: industry,
+    await _persist(
+      await api.authenticate(
+        AccountIdentifier.parse(account, allowsPhone: allowsPhone),
+        password,
+        username: username?.trim(),
+        code: code?.trim(),
+        company: company.trim(),
+        industry: industry,
+      ),
     );
-    await _secure.write(key: 'user-session', value: jsonEncode(authenticated.toJson()));
-    session = authenticated;
-    api.token = authenticated.token;
   }, title: username == null ? 'busy.logging_in' : 'busy.registering');
   Future<bool> sendCode(String account) => perform(
     () => api.sendCode(AccountIdentifier.parse(account, allowsPhone: allowsPhone)),
     title: 'busy.sending_code',
   );
+  Future<bool> updatePassword(String account, String password, String confirm, String code) =>
+      perform(() async {
+        if (password.length < 6) throw const AppException('error.invalid_password');
+        if (password != confirm) throw const AppException('error.password_mismatch');
+        if (code.trim().length < 4) throw const AppException('error.invalid_code');
+        await api.updatePassword(
+          AccountIdentifier.parse(account, allowsPhone: allowsPhone),
+          password,
+          code.trim(),
+        );
+        message = t('notice.password_updated');
+      }, title: 'busy.updating_password');
+  Future<bool> updateUsername(String username) => perform(() async {
+    final name = username.trim();
+    if (name.isEmpty) throw const AppException('error.username');
+    final data = await api.updateUser(name);
+    await _persist(session!.copyWith(username: '${data['username'] ?? name}'));
+    message = t('notice.profile_updated');
+  }, title: 'busy.updating_profile');
   Future<void> signOut() async {
     session = null;
     api.token = null;

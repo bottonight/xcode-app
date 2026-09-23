@@ -88,10 +88,7 @@ class _AuthPageState extends State<AuthPage> {
         !app.busy &&
         account.text.trim().isNotEmpty &&
         password.text.length >= 6 &&
-        (!registering ||
-            (username.text.trim().isNotEmpty &&
-                password.text == confirm.text &&
-                code.text.trim().length >= 4));
+        (!registering || (password.text == confirm.text && code.text.trim().length >= 4));
     return Scaffold(
       body: SafeArea(
         child: PageBody(
@@ -123,8 +120,6 @@ class _AuthPageState extends State<AuthPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Heading(app.t(registering ? 'auth.register_title' : 'auth.login_title')),
-                    if (registering)
-                      field(username, 'auth.username', hints: [AutofillHints.nickname]),
                     field(
                       account,
                       app.allowsPhone ? 'auth.account_cn' : 'auth.account_intl',
@@ -163,6 +158,7 @@ class _AuthPageState extends State<AuthPage> {
                         ],
                       ),
                       field(company, 'auth.company', hints: [AutofillHints.organizationName]),
+                      field(username, 'auth.username', hints: [AutofillHints.nickname]),
                       DropdownButtonFormField<String>(
                         initialValue: industry,
                         isExpanded: true,
@@ -181,6 +177,22 @@ class _AuthPageState extends State<AuthPage> {
                       onPressed: canSubmit ? submit : null,
                       child: Text(app.t(registering ? 'auth.register' : 'auth.login')),
                     ),
+                    if (!registering)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: app.busy
+                              ? null
+                              : () => Navigator.push<void>(
+                                  context,
+                                  MaterialPageRoute<void>(builder: (_) => ResetPasswordPage(app)),
+                                ),
+                          child: Text(
+                            app.t('auth.forgot_password'),
+                            style: const TextStyle(color: muted, fontSize: 12),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -204,6 +216,139 @@ class _AuthPageState extends State<AuthPage> {
                   ),
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ResetPasswordPage extends StatefulWidget {
+  const ResetPasswordPage(this.app, {super.key});
+  final AppModel app;
+  @override
+  State<ResetPasswordPage> createState() => _ResetPasswordPageState();
+}
+
+class _ResetPasswordPageState extends State<ResetPasswordPage> {
+  final account = TextEditingController(),
+      password = TextEditingController(),
+      confirm = TextEditingController(),
+      code = TextEditingController();
+  int cooldown = 0;
+  Timer? timer;
+  @override
+  void dispose() {
+    timer?.cancel();
+    for (final c in [account, password, confirm, code]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> sendCode() async {
+    if (!await widget.app.sendCode(account.text) || !mounted) return;
+    setState(() => cooldown = 60);
+    timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      setState(() => cooldown--);
+      if (cooldown == 0) t.cancel();
+    });
+  }
+
+  Future<void> submit() async {
+    FocusScope.of(context).unfocus();
+    if (await widget.app.updatePassword(account.text, password.text, confirm.text, code.text) &&
+        mounted) {
+      Navigator.pop(context);
+    }
+  }
+
+  Widget field(
+    TextEditingController controller,
+    String key, {
+    bool secret = false,
+    TextInputType? keyboard,
+    List<String>? hints,
+  }) => TextField(
+    controller: controller,
+    obscureText: secret,
+    keyboardType: keyboard,
+    autocorrect: false,
+    enableSuggestions: !secret,
+    autofillHints: hints,
+    decoration: InputDecoration(hintText: widget.app.t(key)),
+    onChanged: (_) => setState(() {}),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final app = widget.app;
+    final canSubmit =
+        !app.busy &&
+        account.text.trim().isNotEmpty &&
+        password.text.length >= 6 &&
+        password.text == confirm.text &&
+        code.text.trim().length >= 4;
+    return Scaffold(
+      appBar: AppBar(title: Text(app.t('auth.reset_title'))),
+      body: SafeArea(
+        child: PageBody(
+          padding: 24,
+          children: [
+            BrandCard(
+              child: AutofillGroup(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    field(
+                      account,
+                      app.allowsPhone ? 'auth.account_cn' : 'auth.account_intl',
+                      keyboard: TextInputType.emailAddress,
+                      hints: [AutofillHints.username],
+                    ),
+                    field(
+                      password,
+                      'auth.new_password',
+                      secret: true,
+                      hints: [AutofillHints.newPassword],
+                    ),
+                    field(
+                      confirm,
+                      'auth.confirm_password',
+                      secret: true,
+                      hints: [AutofillHints.newPassword],
+                    ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: field(
+                            code,
+                            'auth.code',
+                            keyboard: TextInputType.number,
+                            hints: [AutofillHints.oneTimeCode],
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: cooldown > 0 || app.busy || account.text.trim().isEmpty
+                              ? null
+                              : sendCode,
+                          child: Text(cooldown > 0 ? '${cooldown}s' : app.t('auth.get_code')),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton(
+                      onPressed: canSubmit ? submit : null,
+                      child: Text(app.t('auth.reset')),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),

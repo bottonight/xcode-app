@@ -56,6 +56,40 @@ class UserSession {
   final int adminLevel;
   String get account => phone.isEmpty ? email : phone;
   Map<String, String> get query => {phone.isEmpty ? 'email' : 'phone_number': account};
+
+  UserSession copyWith({String? username}) => UserSession(
+    userId: userId,
+    phone: phone,
+    email: email,
+    username: username ?? this.username,
+    token: token,
+    adminLevel: adminLevel,
+  );
+
+  factory UserSession.fromApi(
+    Map<String, dynamic> data,
+    String token, {
+    AccountIdentifier? account,
+    String? username,
+  }) {
+    final detail = Map<String, dynamic>.from(data['UserDetail'] ?? {});
+    return UserSession(
+      userId: '${data['user_id'] ?? detail['user_id'] ?? account?.value ?? ''}',
+      phone:
+          data['phone_number'] ??
+          detail['phone_num'] ??
+          detail['phone_number'] ??
+          (account != null && !account.isEmail ? account.value : ''),
+      email:
+          data['email'] ??
+          detail['email'] ??
+          (account != null && account.isEmail ? account.value : ''),
+      username: data['username'] ?? detail['username'] ?? username ?? account?.value ?? '',
+      token: token,
+      adminLevel: intValue(data['is_admin'] ?? detail['is_admin']),
+    );
+  }
+
   factory UserSession.fromJson(Map<String, dynamic> json) => UserSession(
     userId: '${json['userID'] ?? ''}',
     phone: json['phoneNumber'] ?? '',

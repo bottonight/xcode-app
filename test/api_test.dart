@@ -115,4 +115,54 @@ void main() {
     );
     expect(() => AccountIdentifier.parse('bad@', allowsPhone: true), throwsA(isA<AppException>()));
   });
+  test('Auto-login reuses the stored token and does not require extra body fields', () async {
+    final api = FabricApi(
+      client: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/apps/LoginPage/autoLogin');
+        expect(request.headers['Authorization'], 'Bearer stored');
+        expect(jsonDecode(request.body), {});
+        return http.Response(
+          jsonEncode({
+            'status': true,
+            'user_id': 7,
+            'phone_number': '13800138000',
+            'email': '',
+            'username': 'Restored',
+            'is_admin': 1,
+          }),
+          200,
+        );
+      }),
+    );
+    final user = await api.autoLogin('stored');
+    expect(user.token, 'stored');
+    expect(user.username, 'Restored');
+    expect(user.userId, '7');
+    expect(user.adminLevel, 1);
+    api.dispose();
+  });
+  test('Password reset is unauthenticated and profile update is authenticated', () async {
+    http.Request? passwordRequest;
+    http.Request? profileRequest;
+    final api = FabricApi(
+      client: MockClient((request) async {
+        if (request.url.path.endsWith('updatePassword')) {
+          passwordRequest = request;
+          return http.Response(jsonEncode({'status': true}), 200);
+        }
+        profileRequest = request;
+        return http.Response(jsonEncode({'status': true, 'username': 'New', 'user_id': 7}), 200);
+      }),
+    )..token = 'token';
+    await api.updatePassword(const AccountIdentifier('13800138000', false), 'abcdef', '1234');
+    expect(passwordRequest!.headers.containsKey('Authorization'), false);
+    expect(jsonDecode(passwordRequest!.body)['phone_num'], '13800138000');
+    expect(jsonDecode(passwordRequest!.body)['verification_code'], '1234');
+    final updated = await api.updateUser('New');
+    expect(profileRequest!.headers['Authorization'], 'Bearer token');
+    expect(jsonDecode(profileRequest!.body)['username'], 'New');
+    expect(updated['username'], 'New');
+    api.dispose();
+  });
 }

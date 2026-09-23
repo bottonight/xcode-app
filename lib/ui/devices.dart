@@ -276,6 +276,23 @@ class _SharingPageState extends State<SharingPage> {
 class AccountPage extends StatelessWidget {
   const AccountPage(this.app, {super.key});
   final AppModel app;
+
+  Future<void> _editNickname(BuildContext context) async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => _NicknameDialog(
+        initial: app.session?.username ?? '',
+        title: app.t('account.edit_title'),
+        hint: app.t('account.nickname'),
+        cancelLabel: app.t('common.cancel'),
+        doneLabel: app.t('common.done'),
+      ),
+    );
+    if (result != null && context.mounted) {
+      await app.updateUsername(result);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => PageBody(
     children: [
@@ -288,7 +305,24 @@ class AccountPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Heading(app.session?.username ?? app.t('common.user')),
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    children: [
+                      Heading(
+                        (app.session?.username.trim().isNotEmpty ?? false)
+                            ? app.session!.username
+                            : app.t('common.user'),
+                      ),
+                      GestureDetector(
+                        onTap: () => _editNickname(context),
+                        child: Text(
+                          app.t('account.edit'),
+                          style: const TextStyle(color: indigo, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
                   Text(app.session?.account ?? '', style: const TextStyle(color: muted)),
                 ],
               ),
@@ -329,6 +363,45 @@ class AccountPage extends StatelessWidget {
           onPressed: () => app.perform(app.signOut),
           child: Text(app.t('account.sign_out'), style: const TextStyle(color: Colors.red)),
         ),
+      ),
+    ],
+  );
+}
+
+class _NicknameDialog extends StatefulWidget {
+  const _NicknameDialog({
+    required this.initial,
+    required this.title,
+    required this.hint,
+    required this.cancelLabel,
+    required this.doneLabel,
+  });
+  final String initial, title, hint, cancelLabel, doneLabel;
+  @override
+  State<_NicknameDialog> createState() => _NicknameDialogState();
+}
+
+class _NicknameDialogState extends State<_NicknameDialog> {
+  late final TextEditingController controller = TextEditingController(text: widget.initial);
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.title),
+    content: TextField(
+      controller: controller,
+      autofocus: true,
+      decoration: InputDecoration(hintText: widget.hint),
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: Text(widget.cancelLabel)),
+      TextButton(
+        onPressed: () => Navigator.pop(context, controller.text),
+        child: Text(widget.doneLabel),
       ),
     ],
   );

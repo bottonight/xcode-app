@@ -7,11 +7,12 @@
 **账号约定**：
 - `t_users` 主键为自增 `user_id`；`openid` 可为空。
 - 涉及用户标识的接口，`phone_number` / `phone_num` 与 `email` **二选一**（同时传时优先手机号）。手机号写入 `phone_num`，邮箱写入 `email`。
-- 注册必填 `password` 和验证码；库中存密码哈希。有手机号则校验短信验证码，否则校验邮箱验证码。手机号/邮箱登录需校验密码。仅微信 `openid` 登录可不传密码。
+- 注册可带 `password`：有密码时必填验证码，库中存哈希。无密码时必须同时提供手机号和 `openid`（兼容原微信注册），不校验验证码。
+- 手机号/邮箱登录需校验密码。仅微信 `openid` 登录可不传密码。
 - `t_devices_users` 通过 `user_id` 关联用户，不再存储手机号。
 
 **鉴权约定**：
-- `/login`、`/register`、`/getPhoneVC`、`/getEmailVC`、`/getopenid`、`/getPhoneNumber`、`/decode`、`/GetNewNotice` 无需 token。
+- `/login`、`/register`、`/updatePassword`、`/getPhoneVC`、`/getEmailVC`、`/getopenid`、`/getPhoneNumber`、`/decode`、`/GetNewNotice` 无需 token。
 - 其余接口需登录。请求头带 `Authorization: Bearer <token>`，或 Cookie `token`。
 - 登录/注册成功返回 `token`（有效期 7 天）。登录成功即可，不要求管理员权限。
 - 未登录或 token 无效返回 HTTP 401，`{"status": false, "error": "..."}`。
@@ -44,28 +45,40 @@
 
 ---
 
+## 2.1. /autoLogin
+- **方法**: POST
+- **描述**: 自动登录。只校验请求中的 token 是否过期/有效，无其它入参；通过后更新 `login_time`。**不签发新 token**，因此不会把 7 天有效期往后推
+- **鉴权**: 需登录。请求头 `Authorization: Bearer <token>` 或 Cookie `token`
+- **参数**: 无
+- **返回**:
+  - status: `true` / `false`
+  - permission / phone_number / email / username / is_admin / user_id（成功时，无 token）
+  - error（失败时）；token 缺失或过期为 HTTP 401
+
+---
+
 ## 3. /register
 - **方法**: POST
-- **描述**: 注册；服务端校验短信/邮箱验证码通过后才建号。若用户已存在且密码正确则返回用户信息与 token
+- **描述**: 注册。有密码时校验短信/邮箱验证码后建号；无密码时必须同时提供手机号和 openid（原微信注册）。若用户已存在：有密码则需密码正确，无密码则直接返回用户信息与 token
 - **参数** (json):
-  - openid（可空）
-  - username
-  - phone_num **或** email（二选一，必填；分别写入对应字段）
-  - password（必填）
-  - verification_code / code（必填；有手机号则校验短信验证码，否则校验邮箱验证码）
+  - openid：无密码时必填
+  - username（可空；空则随机生成 `User` + 随机串写入）
+  - phone_num **或** email（二选一；无密码时必须是手机号）
+  - password（可空；有值时必填验证码）
+  - verification_code / code（有密码时必填；有手机号则校验短信验证码，否则校验邮箱验证码）
   - company
   - industry
 - **返回**: JSON 字符串
   - UserDetail: 用户信息（不含 password）
   - is_exist: `0` 新注册 / `1` 已存在
   - token: JWT
-  - status / error（未提供手机号、邮箱、密码或验证码，验证码错误/过期，或用户已存在但密码不正确）
+  - status / error（未提供账号、无密码却缺少手机号/openid、验证码错误/过期，或用户已存在但密码不正确）
 
 ---
 
 ## 4. /getPhoneVC
 - **方法**: POST
-- **描述**: 向手机号发送短信验证码（有效期 5 分钟，60 秒内不可重复发送）。校验在 `/register` 中完成，不单独暴露校验接口
+- **描述**: 向手机号发送短信验证码（有效期 5 分钟，60 秒内不可重复发送）。校验在 `/register`、`/updatePassword` 中完成，不单独暴露校验接口
 - **参数** (json):
   - phone_number / phone_num（必填）
 - **返回**:
@@ -76,7 +89,7 @@
 
 ## 5. /getEmailVC
 - **方法**: POST
-- **描述**: 向邮箱发送验证码（有效期 5 分钟，60 秒内不可重复发送）。校验在 `/register` 中完成，不单独暴露校验接口
+- **描述**: 向邮箱发送验证码（有效期 5 分钟，60 秒内不可重复发送）。校验在 `/register`、`/updatePassword` 中完成，不单独暴露校验接口
 - **参数** (json):
   - email（必填）
 - **返回**:
@@ -195,7 +208,6 @@
   - serial_number
   - mac_NIR
   - device_name
-  - is_qt（可选）: `true` 时按 uuid 查询
   - uuid（可选）
 - **返回**:
   - status: `true` / `false`
@@ -228,7 +240,6 @@
 - **参数** (json):
   - phone_number **或** email
   - serial_number
-  - is_qt（可选）
   - uuid（可选）
 - **返回**:
   - status: `true` / `false`
@@ -245,5 +256,31 @@
   - notice_title
   - newNotice
   - notice_text
+
+---
+
+## 18. /updateUser
+- **方法**: POST
+- **描述**: 修改当前登录用户信息。用 token 中的 `user_id` 定位记录
+- **鉴权**: 需登录
+- **参数** (json):
+  - username（必填）
+- **返回**:
+  - status: `true` / `false`
+  - username / user_id（成功时）
+  - error（失败时，如未提供用户名 / 用户不存在）
+
+---
+
+## 19. /updatePassword
+- **方法**: POST
+- **描述**: 用手机号或邮箱验证码修改密码，无需登录。先调用 `/getPhoneVC` 或 `/getEmailVC`
+- **参数** (json):
+  - phone_number / phone_num **或** email
+  - password（明文，入库为哈希）
+  - verification_code / code
+- **返回**:
+  - status: `true` / `false`
+  - error（失败时，如未提供账号/密码/验证码、用户未注册、验证码错误或过期）
 
 ---

@@ -86,24 +86,34 @@ class FabricApi {
         },
       },
     );
-    final detail = Map<String, dynamic>.from(data['UserDetail'] ?? {});
     final authToken = data['token'] as String?;
     if (authToken == null || authToken.isEmpty) {
       throw const AppException('error.missing_token');
     }
-    return UserSession(
-      userId: '${data['user_id'] ?? detail['user_id'] ?? account.value}',
-      phone:
-          data['phone_number'] ??
-          detail['phone_num'] ??
-          detail['phone_number'] ??
-          (account.isEmail ? '' : account.value),
-      email: data['email'] ?? detail['email'] ?? (account.isEmail ? account.value : ''),
-      username: data['username'] ?? detail['username'] ?? username ?? account.value,
-      token: authToken,
-      adminLevel: intValue(data['is_admin'] ?? detail['is_admin']),
+    return UserSession.fromApi(data, authToken, account: account, username: username);
+  }
+
+  Future<UserSession> autoLogin(String token) async {
+    this.token = token;
+    return UserSession.fromApi(await request('/apps/LoginPage/autoLogin', body: {}), token);
+  }
+
+  Future<void> updatePassword(AccountIdentifier account, String password, String code) async {
+    await request(
+      '/apps/LoginPage/updatePassword',
+      authenticated: false,
+      body: {
+        if (account.isEmail) 'email': account.value,
+        if (!account.isEmail) ...{'phone_num': account.value, 'phone_number': account.value},
+        'password': password,
+        'code': code,
+        'verification_code': code,
+      },
     );
   }
+
+  Future<Map<String, dynamic>> updateUser(String username) =>
+      request('/apps/LoginPage/updateUser', body: {'username': username});
 
   Future<void> sendCode(AccountIdentifier account) async {
     await request(
