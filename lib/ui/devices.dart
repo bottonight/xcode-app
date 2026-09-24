@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../app_model.dart';
 import '../models.dart';
 import 'design.dart';
+import 'fabrics.dart';
 
 class DevicesPage extends StatelessWidget {
   const DevicesPage(this.app, {super.key});
@@ -147,6 +148,14 @@ class DeviceDetailPage extends StatelessWidget {
                     ),
                 ],
               ),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(builder: (_) => DeviceHistoryPage(app, device.serial)),
+              ),
+              icon: const Icon(Icons.history),
+              label: Text(app.t('devices.history')),
             ),
             if (device.shareable)
               FilledButton.icon(
@@ -340,6 +349,18 @@ class AccountPage extends StatelessWidget {
             DropdownMenuItem(value: true, child: Text('English')),
           ],
           onChanged: (value) => app.perform(() => app.setLanguage(value!)),
+        ),
+      ),
+      BrandCard(
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.checkroom_outlined, color: indigo),
+          title: Text(app.t('account.fabrics')),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.push<void>(
+            context,
+            MaterialPageRoute<void>(builder: (_) => FabricsPage(app)),
+          ),
         ),
       ),
       if ((app.session?.adminLevel ?? 0) >= 1)

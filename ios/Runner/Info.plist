@@ -30,6 +30,10 @@
 	<false/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>FabricLab 使用蓝牙连接 NIR 和 IR2210 设备并采集光谱数据。</string>
+	<key>NSCameraUsageDescription</key>
+	<string>需要使用相机拍摄面料照片。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>需要访问相册以添加面料照片。</string>
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>zh-Hans</string>

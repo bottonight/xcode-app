@@ -209,7 +209,7 @@ class FabricApi {
     };
   }
 
-  Future<String> predict(
+  Future<PredictionOutcome> predict(
     List<Capture> captures,
     DeviceIdentity identity,
     AnalysisMode mode,
@@ -225,7 +225,63 @@ class FabricApi {
     if (!succeeded(data['status']) || data['result'] is! String) {
       throw const AppException('pred.failed');
     }
-    return data['result'] as String;
+    final preId = '${data['pre_id'] ?? ''}'.trim();
+    return PredictionOutcome(data['result'] as String, preId: preId.isEmpty ? null : preId);
+  }
+
+  Future<PagedItems<PredictionHistoryItem>> predictionHistory(
+    String serial, {
+    int page = 1,
+    int pageSize = 10,
+  }) async {
+    final data = await request(
+      '/apps/PredictionPage/getPredictionHistory',
+      body: {'serial_number': serial, 'page': page, 'page_size': pageSize},
+    );
+    return PagedItems(
+      items: ((data['list'] as List?) ?? [])
+          .map((item) => PredictionHistoryItem.fromJson(Map<String, dynamic>.from(item as Map)))
+          .toList(),
+      page: intValue(data['page'] ?? page),
+      pageSize: intValue(data['page_size'] ?? pageSize),
+      total: intValue(data['total']),
+    );
+  }
+
+  Future<void> addCustomerData({
+    required List<String> preIds,
+    List<String> images = const [],
+    Map<String, String> data = const {},
+  }) async {
+    if (preIds.isEmpty) throw const AppException('history.need_selection');
+    await request(
+      '/apps/PredictionPage/addCustomerData',
+      body: {'pre_id_list': preIds, 'images': images, 'data': data},
+    );
+  }
+
+  Future<PagedItems<CustomerDataSummary>> customerDataList({
+    int page = 1,
+    int pageSize = 10,
+  }) async {
+    final data = await request(
+      '/apps/PredictionPage/getCustomerDataList',
+      body: {'page': page, 'page_size': pageSize},
+    );
+    return PagedItems(
+      items: ((data['list'] as List?) ?? [])
+          .map((item) => CustomerDataSummary.fromJson(Map<String, dynamic>.from(item as Map)))
+          .toList(),
+      page: intValue(data['page'] ?? page),
+      pageSize: intValue(data['page_size'] ?? pageSize),
+      total: intValue(data['total']),
+    );
+  }
+
+  Future<CustomerDataDetail> customerData(int id) async {
+    return CustomerDataDetail.fromJson(
+      await request('/apps/PredictionPage/getCustomerData', body: {'id': id}),
+    );
   }
 
   Future<void> setReference(Capture capture, DeviceIdentity identity) async {

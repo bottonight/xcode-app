@@ -97,12 +97,22 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining(app.t('workbench.tip_1')), findsOneWidget);
     expect(find.text(app.t('workbench.start_scan')), findsOneWidget);
+    app.result = '棉 80%';
+    app.resultTime = DateTime(2026, 9, 24, 12);
+    app.currentPreId = 'p1';
+    app.recentPredictions = const [
+      PredictionHistoryItem(preId: 'p1', time: '2026-09-24 12:00:00', components: '棉 80%'),
+      PredictionHistoryItem(preId: 'p2', time: '2026-09-23 10:00:00', components: '涤 100%'),
+    ];
+    app.notifyListeners();
     await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
+    expect(find.text('棉 80%'), findsWidgets);
+    expect(find.text(app.t('history.previous')), findsOneWidget);
     await tester.tap(find.text(app.t('tab.account')));
     await tester.pumpAndSettle();
     expect(find.text('Test'), findsOneWidget);
     expect(find.text(app.t('account.edit')), findsOneWidget);
+    expect(find.text(app.t('account.fabrics')), findsOneWidget);
     await tester.tap(find.text(app.t('account.edit')));
     await tester.pumpAndSettle();
     expect(find.text(app.t('account.edit_title')), findsOneWidget);

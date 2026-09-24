@@ -78,6 +78,8 @@ class AppModel extends ChangeNotifier {
   List<AnalysisMode> modes = [];
   List<Capture> captures = [];
   List<ManagedDevice> managedDevices = [];
+  List<PredictionHistoryItem> recentPredictions = [];
+  String? currentPreId;
   int? batteryPercent;
   Timer? _batteryTimer;
   static const batteryPollInterval = Duration(minutes: 2);
@@ -150,6 +152,11 @@ class AppModel extends ChangeNotifier {
     api.language = value ? 'en' : 'zh-Hans';
     notifyListeners();
     await _preferences?.setBool('english', value);
+  }
+
+  void showMessage(String text) {
+    message = text;
+    notifyListeners();
   }
 
   Future<void> _handleError(Object error) async {
@@ -250,6 +257,7 @@ class AppModel extends ChangeNotifier {
     captures = [];
     result = null;
     resultTime = null;
+    currentPreId = null;
     notifyListeners();
   }
 
@@ -262,6 +270,8 @@ class AppModel extends ChangeNotifier {
     captures = [];
     result = null;
     resultTime = null;
+    currentPreId = null;
+    recentPredictions = [];
     batteryPercent = null;
     _stopBatteryMonitor();
   }
@@ -370,6 +380,16 @@ class AppModel extends ChangeNotifier {
     clearMeasurements();
     route = HomeRoute.workbench;
     notifyListeners();
+    unawaited(loadRecentPredictions());
+  }
+
+  Future<void> loadRecentPredictions() async {
+    final serial = identity?.serial;
+    if (serial == null) return;
+    try {
+      recentPredictions = (await api.predictionHistory(serial, pageSize: 10)).items;
+      notifyListeners();
+    } catch (_) {}
   }
 
   Future<void> _accept(Capture capture) async {
@@ -381,6 +401,7 @@ class AppModel extends ChangeNotifier {
     }
     result = null;
     resultTime = null;
+    currentPreId = null;
     captures = multiple ? [...captures, capture] : [capture];
     if (!multiple) await _predict();
   }
@@ -413,8 +434,13 @@ class AppModel extends ChangeNotifier {
     if (!bluetooth.connectedReady || selectedDevice?.id != device.id || session != currentSession) {
       throw const AppException('bt.device_lost');
     }
-    result = predicted;
+    result = predicted.result;
     resultTime = DateTime.now();
+    currentPreId = predicted.preId;
+    await loadRecentPredictions();
+    if ((currentPreId == null || currentPreId!.isEmpty) && recentPredictions.isNotEmpty) {
+      currentPreId = recentPredictions.first.preId;
+    }
   }
 
   Future<bool> scan() => perform(() async {
@@ -441,6 +467,19 @@ class AppModel extends ChangeNotifier {
   Future<bool> loadDevices() => perform(() async {
     managedDevices = await api.devices(session!);
   });
+  Future<PagedItems<PredictionHistoryItem>> loadDeviceHistory(String serial, {int page = 1}) =>
+      api.predictionHistory(serial, page: page, pageSize: 20);
+  Future<PagedItems<CustomerDataSummary>> loadFabrics({int page = 1}) =>
+      api.customerDataList(page: page, pageSize: 20);
+  Future<CustomerDataDetail> loadFabric(int id) => api.customerData(id);
+  Future<bool> saveCustomerData({
+    required List<String> preIds,
+    List<String> images = const [],
+    Map<String, String> data = const {},
+  }) => perform(() async {
+    await api.addCustomerData(preIds: preIds, images: images, data: data);
+    message = t('notice.fabric_saved');
+  }, title: 'busy.saving');
   @override
   void dispose() {
     _stopBatteryMonitor();

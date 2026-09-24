@@ -33,7 +33,7 @@ class TestApi extends FabricApi {
   Completer<String>? pendingPrediction;
   int predictions = 0;
   @override
-  Future<String> predict(
+  Future<PredictionOutcome> predict(
     List<Capture> captures,
     DeviceIdentity identity,
     AnalysisMode mode,
@@ -42,7 +42,17 @@ class TestApi extends FabricApi {
     List<int>? builtin,
   ) async {
     predictions++;
-    return pendingPrediction == null ? 'Cotton 100%' : pendingPrediction!.future;
+    final result = pendingPrediction == null ? 'Cotton 100%' : await pendingPrediction!.future;
+    return PredictionOutcome(result);
+  }
+
+  @override
+  Future<PagedItems<PredictionHistoryItem>> predictionHistory(
+    String serial, {
+    int page = 1,
+    int pageSize = 10,
+  }) async {
+    return const PagedItems(items: []);
   }
 }
 

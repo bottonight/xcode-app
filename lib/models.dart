@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 enum DeviceKind {
   nir,
   ir2210;
@@ -183,3 +185,95 @@ class Capture {
 }
 
 enum HomeRoute { projects, discovery, modes, workbench }
+
+String formatComponents(dynamic value) {
+  if (value == null) return '';
+  if (value is String) {
+    final text = value.trim();
+    if (text.isEmpty) return '';
+    if (text.startsWith('{') || text.startsWith('[')) {
+      try {
+        return formatComponents(jsonDecode(text));
+      } catch (_) {
+        return text;
+      }
+    }
+    return text;
+  }
+  if (value is Map) {
+    return value.entries
+        .map((entry) {
+          final item = entry.value;
+          if (item is num) return '${entry.key} $item%';
+          return '${entry.key} $item';
+        })
+        .join('  ');
+  }
+  if (value is List) {
+    return value.map(formatComponents).where((text) => text.isNotEmpty).join('；');
+  }
+  return '$value';
+}
+
+String formatLocalTime(DateTime time) {
+  String two(int value) => value.toString().padLeft(2, '0');
+  return '${time.year}-${two(time.month)}-${two(time.day)} ${two(time.hour)}:${two(time.minute)}:${two(time.second)}';
+}
+
+Map<String, String> stringMap(dynamic value) {
+  if (value is! Map) return {};
+  return value.map((key, item) => MapEntry('$key', item == null ? '' : '$item'));
+}
+
+class PagedItems<T> {
+  const PagedItems({required this.items, this.page = 1, this.pageSize = 10, this.total = 0});
+  final List<T> items;
+  final int page, pageSize, total;
+  bool get hasMore => page * pageSize < total;
+}
+
+class PredictionOutcome {
+  const PredictionOutcome(this.result, {this.preId});
+  final String result;
+  final String? preId;
+}
+
+class PredictionHistoryItem {
+  const PredictionHistoryItem({required this.preId, required this.time, required this.components});
+  final String preId, time, components;
+  factory PredictionHistoryItem.fromJson(Map<String, dynamic> json) => PredictionHistoryItem(
+    preId: '${json['pre_id'] ?? ''}',
+    time: '${json['time'] ?? ''}',
+    components: formatComponents(json['components']),
+  );
+}
+
+class CustomerDataSummary {
+  const CustomerDataSummary({required this.id, required this.time, required this.components});
+  final int id;
+  final String time, components;
+  factory CustomerDataSummary.fromJson(Map<String, dynamic> json) => CustomerDataSummary(
+    id: intValue(json['id']),
+    time: '${json['time'] ?? ''}',
+    components: formatComponents(json['components']),
+  );
+}
+
+class CustomerDataDetail {
+  const CustomerDataDetail({
+    required this.id,
+    required this.data,
+    required this.images,
+    required this.components,
+  });
+  final int id;
+  final Map<String, String> data;
+  final List<String> images;
+  final List<String> components;
+  factory CustomerDataDetail.fromJson(Map<String, dynamic> json) => CustomerDataDetail(
+    id: intValue(json['id']),
+    data: stringMap(json['data']),
+    images: List<String>.from(json['images'] ?? const []),
+    components: ((json['components'] as List?) ?? []).map(formatComponents).toList(),
+  );
+}

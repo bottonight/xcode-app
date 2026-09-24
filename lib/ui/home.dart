@@ -4,6 +4,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../app_model.dart';
 import '../models.dart';
 import 'design.dart';
+import 'fabrics.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage(this.app, {super.key});
@@ -318,43 +319,7 @@ class HomePage extends StatelessWidget {
           ],
         ),
       ),
-      if (app.result != null)
-        BrandCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.verified, color: cyan),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      app.t('workbench.result'),
-                      style: const TextStyle(color: cyan, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  if (app.resultTime != null)
-                    Text(
-                      TimeOfDay.fromDateTime(app.resultTime!).format(context),
-                      style: const TextStyle(color: muted, fontSize: 12),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              SelectableText(
-                app.result!,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-              ),
-              if (app.multiple) ...[
-                const SizedBox(height: 8),
-                Text(
-                  app.t('workbench.result_based', app.captures.length),
-                  style: const TextStyle(color: muted, fontSize: 12),
-                ),
-              ],
-            ],
-          ),
-        ),
+      WorkbenchResults(app),
       if ((app.session?.adminLevel ?? 0) >= 1)
         BrandCard(
           child: Column(
@@ -466,6 +431,162 @@ class HomePage extends StatelessWidget {
       ],
     ),
   );
+}
+
+class WorkbenchResults extends StatefulWidget {
+  const WorkbenchResults(this.app, {super.key});
+  final AppModel app;
+  @override
+  State<WorkbenchResults> createState() => _WorkbenchResultsState();
+}
+
+class _WorkbenchResultsState extends State<WorkbenchResults> {
+  bool selecting = false;
+  final selected = <String>{};
+
+  PredictionHistoryItem? get current {
+    final app = widget.app;
+    if (app.result == null) return null;
+    return PredictionHistoryItem(
+      preId: app.currentPreId ?? '',
+      time: app.resultTime == null ? '' : formatLocalTime(app.resultTime!),
+      components: app.result!,
+    );
+  }
+
+  List<PredictionHistoryItem> get previous {
+    final currentId = widget.app.currentPreId;
+    final rest = widget.app.recentPredictions
+        .where((item) => item.preId.isEmpty || item.preId != currentId)
+        .toList();
+    return rest.take(current == null ? 10 : 9).toList();
+  }
+
+  void cancel() => setState(() {
+    selecting = false;
+    selected.clear();
+  });
+
+  void startSelecting(PredictionHistoryItem item) {
+    setState(() {
+      selecting = true;
+      if (item.preId.isNotEmpty) selected.add(item.preId);
+    });
+  }
+
+  Future<void> save() async {
+    final ids = selected.where((id) => id.isNotEmpty).toList();
+    if (ids.isEmpty) {
+      widget.app.showMessage(widget.app.t('history.need_selection'));
+      return;
+    }
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => SaveCustomerDataSheet(widget.app, ids),
+    );
+    if (saved == true && mounted) cancel();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = widget.app;
+    final latest = current;
+    final older = previous;
+    if (latest == null && older.isEmpty) return const SizedBox.shrink();
+    return BrandCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.verified, color: cyan),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  app.t('workbench.result'),
+                  style: const TextStyle(color: cyan, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TwoColumnHeader(app),
+          if (latest != null) ...[
+            TwoColumnRow(
+              time: latest.time,
+              components: latest.components,
+              selecting: selecting,
+              checked: selected.contains(latest.preId),
+              canCheck: latest.preId.isNotEmpty,
+              onLongPress: () => startSelecting(latest),
+              onChecked: (value) => setState(() {
+                if (value) {
+                  selected.add(latest.preId);
+                } else {
+                  selected.remove(latest.preId);
+                }
+              }),
+            ),
+            if (app.multiple)
+              Text(
+                app.t('workbench.result_based', app.captures.length),
+                style: const TextStyle(color: muted, fontSize: 12),
+              ),
+          ],
+          if (older.isNotEmpty)
+            Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                key: ValueKey(selecting || latest == null),
+                initiallyExpanded: selecting || latest == null,
+                tilePadding: EdgeInsets.zero,
+                title: Text(
+                  app.t(latest == null ? 'history.recent' : 'history.previous'),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                children: [
+                  for (final item in older)
+                    TwoColumnRow(
+                      time: item.time,
+                      components: item.components,
+                      selecting: selecting,
+                      checked: selected.contains(item.preId),
+                      canCheck: item.preId.isNotEmpty,
+                      onLongPress: () => startSelecting(item),
+                      onChecked: (value) => setState(() {
+                        if (value) {
+                          selected.add(item.preId);
+                        } else {
+                          selected.remove(item.preId);
+                        }
+                      }),
+                    ),
+                ],
+              ),
+            ),
+          if (selecting) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(onPressed: cancel, child: Text(app.t('common.cancel'))),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: app.busy ? null : save,
+                    child: Text(app.t('history.save')),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 class DeviceSettingsPage extends StatefulWidget {

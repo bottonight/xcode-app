@@ -165,4 +165,82 @@ void main() {
     expect(updated['username'], 'New');
     api.dispose();
   });
+  test('Prediction history and customer data endpoints parse list payloads', () async {
+    final api = FabricApi(
+      client: MockClient((request) async {
+        if (request.url.path.endsWith('getPredictionHistory')) {
+          expect(jsonDecode(request.body)['serial_number'], 'sn');
+          return http.Response.bytes(
+            utf8.encode(
+              jsonEncode({
+                'status': true,
+                'page': 1,
+                'page_size': 10,
+                'total': 1,
+                'list': [
+                  {
+                    'pre_id': '20260923212157287031',
+                    'time': '2026-09-23 21:21:57',
+                    'components': {'cotton': 80, 'poly': 20},
+                  },
+                ],
+              }),
+            ),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        if (request.url.path.endsWith('addCustomerData')) {
+          final body = jsonDecode(request.body);
+          expect(body['pre_id_list'], ['1']);
+          expect(body['images'], ['data:image/jpeg;base64,xx']);
+          expect(body['data']['name'], 'A');
+          return http.Response(jsonEncode({'status': true, 'id': 12}), 200);
+        }
+        if (request.url.path.endsWith('getCustomerDataList')) {
+          return http.Response(
+            jsonEncode({
+              'status': true,
+              'page': 1,
+              'page_size': 10,
+              'total': 1,
+              'list': [
+                {'id': 12, 'time': '2026-09-24 12:00:00', 'components': 'cotton 80%'},
+              ],
+            }),
+            200,
+          );
+        }
+        expect(jsonDecode(request.body)['id'], 12);
+        return http.Response(
+          jsonEncode({
+            'status': true,
+            'id': 12,
+            'data': {'name': 'A'},
+            'images': ['data:image/jpeg;base64,QQ=='],
+            'components': [
+              {'cotton': 80},
+              null,
+            ],
+          }),
+          200,
+        );
+      }),
+    )..token = 'token';
+    final history = await api.predictionHistory('sn');
+    expect(history.items.single.preId, '20260923212157287031');
+    expect(history.items.single.components, 'cotton 80%  poly 20%');
+    await api.addCustomerData(
+      preIds: ['1'],
+      images: ['data:image/jpeg;base64,xx'],
+      data: {'name': 'A'},
+    );
+    final list = await api.customerDataList();
+    expect(list.items.single.id, 12);
+    final detail = await api.customerData(12);
+    expect(detail.data['name'], 'A');
+    expect(detail.images, isNotEmpty);
+    expect(detail.components, ['cotton 80%', '']);
+    api.dispose();
+  });
 }

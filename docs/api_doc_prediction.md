@@ -392,3 +392,68 @@
 - **参数 / 返回**: 以实现与调试需求为准
 
 ---
+
+## 21. /getPredictionHistory
+- **方法**: POST
+- **描述**: 查询某设备近 7 天预测记录。用 token 中的 `user_id` 校验该用户是否已绑定该设备，再查 `t_nirpre`。按 `pre_id`（时间）倒序分页
+- **鉴权**: 需登录
+- **参数** (json):
+  - serial_number: 设备号（必填）
+  - page: 页码，默认 `1`
+  - page_size: 每页条数，默认 `10`（最大 100）
+- **返回**:
+  - status: `true` / `false`
+  - list: `{ pre_id, time, components }` 列表。`time` 由 `pre_id` 解析，如 `20260923212157287031` → `2026-09-23 21:21:57`；`components` 为预测成分 JSON
+  - page / page_size / total
+  - error（失败时：未提供设备号 / 无用户信息 / 没有该设备权限）
+
+---
+
+## 22. /addCustomerData
+- **方法**: POST
+- **描述**: 添加客户数据。`user_id` 取自 token，将图片保存到项目根目录 `customer_data/{id}/`，再把路径列表与 `pre_id`、其他字段写入 `t_customer_data`
+- **鉴权**: 需登录
+- **参数** (json):
+  - images: 图片 base64 列表（可空）。支持纯 base64 或 `data:image/...;base64,` 前缀
+  - pre_id_list: 预测 `pre_id` 列表（必填，不能为空；也可用 `pre_ids`）
+  - data: 其他数据，JSON 键值对（可空），如面料名等
+- **返回**:
+  - status: `true` / `false`
+  - id: 新插入记录的主键，同时作为图片子文件夹名
+  - user_id: 当前登录用户
+  - images: 服务器相对路径列表，如 `customer_data/12/1.jpg`
+  - pre_id_list / data
+  - error（失败时：无用户信息 / 未提供 pre_id 列表 / 图片、pre_id、其他数据格式错误，或图片保存失败）
+
+---
+
+## 23. /getCustomerDataList
+- **方法**: POST
+- **描述**: 查询当前用户的客户数据列表。`user_id` 取自 token，按 `time` 倒序分页。每条返回 `id`，以及 `pre_id_list` 中第一条预测的成分，用于标识该条数据
+- **鉴权**: 需登录
+- **参数** (json):
+  - page: 页码，默认 `1`
+  - page_size: 每页条数，默认 `10`（最大 100）
+- **返回**:
+  - status: `true` / `false`
+  - list: `{ id, time, components }` 列表。`time` 为记录时间（`YYYY-MM-DD HH:MM:SS`）；`components` 来自 `t_nirpre` 中对应第一条 `pre_id` 的成分；找不到则为 `null`
+  - page / page_size / total
+  - error（失败时：无用户信息）
+
+---
+
+## 24. /getCustomerData
+- **方法**: POST
+- **描述**: 查询一条客户数据详情。`user_id` 取自 token，先校验该记录是否属于当前用户，再返回其他数据、全部图片（按保存路径读取为 base64）以及全部 `pre_id` 的成分信息
+- **鉴权**: 需登录
+- **参数** (json):
+  - id: 客户数据主键（必填）
+- **返回**:
+  - status: `true` / `false`
+  - id
+  - data: 其他数据 JSON
+  - images: 图片 base64 列表（`data:image/...;base64,`）
+  - components: 与 `pre_id_list` 顺序对应的成分列表，只含成分；某条预测不存在则为 `null`
+  - error（失败时：未提供数据 id / 无用户信息 / 数据不存在 / 没有查看权限）
+
+---
