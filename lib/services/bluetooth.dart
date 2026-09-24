@@ -15,6 +15,7 @@ enum _Operation {
   collecting,
   hardwareScanning,
   hardwareCollecting,
+  battery,
 }
 
 class FabricBluetooth extends ChangeNotifier {
@@ -324,6 +325,17 @@ class FabricBluetooth extends ChangeNotifier {
     final serial = ascii.decode(bytes).replaceAll(RegExp(r'^[\x00-\x20]+|[\x00-\x20]+$'), '');
     if (serial.isEmpty) throw const AppException('bt.ir_empty_sn');
     return DeviceIdentity(device.name, serial);
+  }
+
+  Future<int> readBattery() async {
+    if (!connectedReady) throw const AppException('bt.device_lost');
+    if (_operation != _Operation.idle) throw const AppException('bt.busy_other');
+    _operation = _Operation.battery;
+    try {
+      return parseBatteryLevel(await _char('2a19', read: true).read(timeout: 6));
+    } finally {
+      if (_operation == _Operation.battery) _operation = _Operation.idle;
+    }
   }
 
   String _hex(List<int> bytes) => bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();

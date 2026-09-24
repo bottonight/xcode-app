@@ -72,8 +72,12 @@ void main() {
     expect(find.text(app.t('project.composition')), findsOneWidget);
     expect(find.byType(BottomNavigationBar), findsOneWidget);
     app.selectedDevice = const NearbyDevice('test', 'IR2210 Test', DeviceKind.ir2210, -55);
+    app.batteryPercent = 80;
     app.chooseMode(const AnalysisMode('cotton', '成分分析', 'Composition', 0));
     await tester.pumpAndSettle();
+    expect(find.text(app.t('workbench.connected')), findsNothing);
+    expect(find.text('80%'), findsOneWidget);
+    expect(find.byIcon(Icons.battery_full), findsOneWidget);
     expect(find.text(app.t('workbench.settings')), findsOneWidget);
     expect(find.text(app.t('workbench.scan_and_predict')), findsNothing);
     expect(find.byIcon(Icons.settings), findsOneWidget);

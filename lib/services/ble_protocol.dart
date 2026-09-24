@@ -95,3 +95,10 @@ class IrAssembler {
     return frames;
   }
 }
+
+int parseBatteryLevel(List<int> data) {
+  if (data.isEmpty) throw const AppException('error.invalid_response');
+  final value = data.first;
+  if (value < 0 || value > 100) throw const AppException('error.invalid_response');
+  return value;
+}

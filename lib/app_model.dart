@@ -10,6 +10,8 @@ import 'models.dart';
 import 'services/api.dart';
 import 'services/bluetooth.dart';
 
+bool isChineseLanguage(Locale locale) => locale.languageCode.toLowerCase() == 'zh';
+
 class AppModel extends ChangeNotifier {
   AppModel({FabricApi? api, FabricBluetooth? bluetooth})
     : api = api ?? FabricApi(),
@@ -76,8 +78,13 @@ class AppModel extends ChangeNotifier {
   List<AnalysisMode> modes = [];
   List<Capture> captures = [];
   List<ManagedDevice> managedDevices = [];
+  int? batteryPercent;
+  Timer? _batteryTimer;
+  static const batteryPollInterval = Duration(minutes: 2);
   bool get allowsPhone =>
       WidgetsBinding.instance.platformDispatcher.locale.countryCode?.toUpperCase() == 'CN';
+  bool get usesChineseSystemLanguage =>
+      isChineseLanguage(WidgetsBinding.instance.platformDispatcher.locale);
   String t(String key, [Object? value]) {
     final text = (_translations[english ? 'en' : 'zh']?[key] ?? key) as String;
     return value == null ? text : text.replaceFirst(RegExp(r'%[@d]'), '$value');
@@ -91,7 +98,7 @@ class AppModel extends ChangeNotifier {
     }
     try {
       _preferences = await SharedPreferences.getInstance();
-      english = _preferences!.getBool('english') ?? !allowsPhone;
+      english = _preferences!.getBool('english') ?? !usesChineseSystemLanguage;
       api.language = english ? 'en' : 'zh-Hans';
       final stored = await _secure.read(key: 'user-session');
       if (stored != null) {
@@ -255,6 +262,31 @@ class AppModel extends ChangeNotifier {
     captures = [];
     result = null;
     resultTime = null;
+    batteryPercent = null;
+    _stopBatteryMonitor();
+  }
+
+  void _stopBatteryMonitor() {
+    _batteryTimer?.cancel();
+    _batteryTimer = null;
+  }
+
+  void _startBatteryMonitor() {
+    _stopBatteryMonitor();
+    _batteryTimer = Timer.periodic(batteryPollInterval, (_) {
+      unawaited(_refreshBattery());
+    });
+  }
+
+  Future<void> _refreshBattery({bool force = false}) async {
+    if (!force && (busy || !bluetooth.connectedReady)) return;
+    if (!bluetooth.connectedReady) return;
+    try {
+      final value = await bluetooth.readBattery();
+      if (selectedDevice == null) return;
+      batteryPercent = value;
+      notifyListeners();
+    } catch (_) {}
   }
 
   Future<void> discover() async {
@@ -287,6 +319,8 @@ class AppModel extends ChangeNotifier {
       await bluetooth.connect(device);
       selectedDevice = device;
       identity = await bluetooth.readIdentity();
+      await _refreshBattery(force: true);
+      _startBatteryMonitor();
       final inspection = await api.inspect(device.kind, identity!, session!);
       if (!bluetooth.connectedReady || selectedDevice?.id != device.id) {
         throw const AppException('bt.device_lost');
@@ -409,6 +443,7 @@ class AppModel extends ChangeNotifier {
   });
   @override
   void dispose() {
+    _stopBatteryMonitor();
     bluetooth.removeListener(notifyListeners);
     bluetooth.dispose();
     api.dispose();

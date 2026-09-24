@@ -25,6 +25,7 @@
   "workbench.inspect": "Measure",
   "workbench.disconnected": "No device connected",
   "workbench.connected": "Connected",
+  "workbench.battery_unknown": "Battery unknown",
   "workbench.settings": "Measurement settings",
   "workbench.scan_mode": "Scan mode",
   "workbench.calibration": "Calibration",
@@ -194,5 +195,6 @@
   "bt.nir_scan_len": "NIR spectrum length is %d, expected 3822",
   "bt.ir_incomplete": "IR2210 spectrum packets are incomplete",
   "bt.ir_empty_sn": "IR2210 serial number is empty",
-  "a11y.signal": "Signal strength %d"
+  "a11y.signal": "Signal strength %d",
+  "a11y.battery": "Battery %d%"
 }

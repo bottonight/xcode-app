@@ -1,20 +1,31 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fabriclab/app_model.dart';
 import 'package:fabriclab/models.dart';
 import 'package:fabriclab/services/api.dart';
 import 'package:fabriclab/services/bluetooth.dart';
+import 'package:fabriclab/ui/design.dart';
 
 class TestBluetooth extends FabricBluetooth {
   bool ready = true;
   int scanCalls = 0;
+  int batteryReads = 0;
+  int batteryValue = 80;
   @override
   bool get connectedReady => ready;
   @override
   Future<Capture> scan() async {
     scanCalls++;
     return Capture(DeviceKind.ir2210, List.filled(256, 12));
+  }
+
+  @override
+  Future<int> readBattery() async {
+    batteryReads++;
+    return batteryValue;
   }
 }
 
@@ -117,5 +128,28 @@ void main() {
       't',
     );
     expect(session.copyWith(username: 'New').username, 'New');
+  });
+  test('Default language follows system language, not region', () {
+    expect(isChineseLanguage(const Locale('zh')), isTrue);
+    expect(isChineseLanguage(const Locale('zh', 'CN')), isTrue);
+    expect(isChineseLanguage(const Locale('zh', 'US')), isTrue);
+    expect(
+      isChineseLanguage(const Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant')),
+      isTrue,
+    );
+    expect(isChineseLanguage(const Locale('en', 'CN')), isFalse);
+    expect(isChineseLanguage(const Locale('ja')), isFalse);
+  });
+  test('Battery color is green at 50+, yellow from 20, red below 20', () {
+    expect(AppModel.batteryPollInterval, const Duration(minutes: 2));
+    expect(batteryColor(100), batteryHigh);
+    expect(batteryColor(50), batteryHigh);
+    expect(batteryColor(49), batteryMedium);
+    expect(batteryColor(20), batteryMedium);
+    expect(batteryColor(19), batteryLow);
+    expect(batteryIconFor(80), Icons.battery_full);
+    expect(batteryIconFor(30), Icons.battery_3_bar);
+    expect(batteryIconFor(10), Icons.battery_alert);
+    expect(batteryIconFor(null), Icons.battery_unknown);
   });
 }

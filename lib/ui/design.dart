@@ -3,6 +3,22 @@ import 'package:flutter/material.dart';
 const indigo = Color(0xFF2E45B8);
 const cyan = Color(0xFF14A6B8);
 const muted = Color(0xFF727782);
+const batteryHigh = Color(0xFF2E9B4A);
+const batteryMedium = Color(0xFFE6B000);
+const batteryLow = Color(0xFFD64545);
+
+Color batteryColor(int percent) {
+  if (percent >= 50) return batteryHigh;
+  if (percent >= 20) return batteryMedium;
+  return batteryLow;
+}
+
+IconData batteryIconFor(int? percent) {
+  if (percent == null) return Icons.battery_unknown;
+  if (percent >= 50) return Icons.battery_full;
+  if (percent >= 20) return Icons.battery_3_bar;
+  return Icons.battery_alert;
+}
 
 ThemeData fabricTheme() => ThemeData(
   useMaterial3: true,

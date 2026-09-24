@@ -25,6 +25,7 @@
   "workbench.inspect": "检测",
   "workbench.disconnected": "未连接设备",
   "workbench.connected": "已连接",
+  "workbench.battery_unknown": "电量未知",
   "workbench.settings": "检测设置",
   "workbench.scan_mode": "扫描方式",
   "workbench.calibration": "校准方式",
@@ -194,5 +195,6 @@
   "bt.nir_scan_len": "NIR 光谱长度为 %d，应为 3822",
   "bt.ir_incomplete": "IR2210 光谱分包不完整",
   "bt.ir_empty_sn": "IR2210 序列号为空",
-  "a11y.signal": "信号强度 %d 格"
+  "a11y.signal": "信号强度 %d 格",
+  "a11y.battery": "电量 %d%"
 }

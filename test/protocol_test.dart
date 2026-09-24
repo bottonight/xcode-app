@@ -75,4 +75,11 @@ void main() {
     expect(() => Capture(DeviceKind.nir, List.filled(3822, 256)), throwsA(isA<AppException>()));
     expect(() => Capture(DeviceKind.ir2210, [1, 2]), throwsA(isA<AppException>()));
   });
+  test('Battery level is a single percent byte', () {
+    expect(parseBatteryLevel([80]), 80);
+    expect(parseBatteryLevel([0]), 0);
+    expect(parseBatteryLevel([100]), 100);
+    expect(() => parseBatteryLevel([]), throwsA(isA<AppException>()));
+    expect(() => parseBatteryLevel([101]), throwsA(isA<AppException>()));
+  });
 }

@@ -216,6 +216,26 @@ class HomePage extends StatelessWidget {
     ],
   );
 
+  Widget _batteryStatus() {
+    final percent = app.batteryPercent;
+    final color = percent == null ? muted : batteryColor(percent);
+    return Semantics(
+      label: percent == null ? app.t('workbench.battery_unknown') : app.t('a11y.battery', percent),
+      child: Row(
+        children: [
+          Icon(batteryIconFor(percent), color: color, size: 16),
+          if (percent != null) ...[
+            const SizedBox(width: 5),
+            Text(
+              '$percent%',
+              style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _workbench(BuildContext context) => PageBody(
     children: [
       BrandCard(
@@ -227,16 +247,7 @@ class HomePage extends StatelessWidget {
                 children: [
                   Heading(app.selectedDevice?.name ?? app.t('workbench.disconnected')),
                   const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      const Icon(Icons.check_circle, color: Colors.green, size: 14),
-                      const SizedBox(width: 5),
-                      Text(
-                        app.t('workbench.connected'),
-                        style: const TextStyle(color: Colors.green, fontSize: 12),
-                      ),
-                    ],
-                  ),
+                  _batteryStatus(),
                 ],
               ),
             ),
@@ -439,10 +450,7 @@ class HomePage extends StatelessWidget {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(app.t('common.done')),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(app.t('common.done'))),
         ],
       ),
     );
