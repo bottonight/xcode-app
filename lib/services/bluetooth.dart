@@ -284,6 +284,10 @@ class FabricBluetooth extends ChangeNotifier {
         final address = IrProtocol.address(frame);
         if (address == 0x4000300A && _operation == _Operation.idle) {
           _beginHardware(_Operation.hardwareCollecting);
+        } else if (address == 0x40003004 &&
+            _operation == _Operation.battery &&
+            frame.length >= 12) {
+          _complete([frame[10]]);
         } else if (frame.length >= 20) {
           final isIdentity = address == 0x40003007 && _operation == _Operation.identity;
           final isScan =
@@ -329,13 +333,22 @@ class FabricBluetooth extends ChangeNotifier {
 
   Future<int> readBattery() async {
     if (!connectedReady) throw const AppException('bt.device_lost');
-    if (_operation != _Operation.idle) throw const AppException('bt.busy_other');
-    _operation = _Operation.battery;
-    try {
-      return parseBatteryLevel(await _char('2a19', read: true).read(timeout: 6));
-    } finally {
-      if (_operation == _Operation.battery) _operation = _Operation.idle;
+    if (connected!.kind == DeviceKind.nir) {
+      if (_operation != _Operation.idle) throw const AppException('bt.busy_other');
+      _operation = _Operation.battery;
+      try {
+        return parseBatteryLevel(await _char('2a19', read: true).read(timeout: 6));
+      } finally {
+        if (_operation == _Operation.battery) _operation = _Operation.idle;
+      }
     }
+    return parseBatteryLevel(
+      await _exchange(
+        _Operation.battery,
+        () => _write('ffe1', IrProtocol.command(0x40003004, [0, 1])),
+        seconds: 6,
+      ),
+    );
   }
 
   String _hex(List<int> bytes) => bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();

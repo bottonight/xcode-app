@@ -75,6 +75,29 @@ void main() {
     expect(() => Capture(DeviceKind.nir, List.filled(3822, 256)), throwsA(isA<AppException>()));
     expect(() => Capture(DeviceKind.ir2210, [1, 2]), throwsA(isA<AppException>()));
   });
+  test('IR battery command and reply match protocol item 4', () {
+    expect(IrProtocol.command(0x40003004, [0, 1]), [
+      0x55,
+      0xD5,
+      0xCD,
+      0xC4,
+      0,
+      10,
+      0x40,
+      0,
+      0x30,
+      4,
+      0,
+      1,
+      0x10,
+    ]);
+    const reply = [0x55, 0xD5, 0xDD, 0xC4, 0, 9, 0x40, 0, 0x30, 4, 0x64, 0x82];
+    expect(irFrame(0x40003004, [0x64]), reply);
+    final frames = IrAssembler().feed(reply);
+    expect(frames, [reply]);
+    expect(IrProtocol.address(frames.single), 0x40003004);
+    expect(parseBatteryLevel([frames.single[10]]), 100);
+  });
   test('Battery level is a single percent byte', () {
     expect(parseBatteryLevel([80]), 80);
     expect(parseBatteryLevel([0]), 0);
