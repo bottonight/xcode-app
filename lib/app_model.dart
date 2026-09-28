@@ -468,9 +468,9 @@ class AppModel extends ChangeNotifier {
     managedDevices = await api.devices(session!);
   });
   Future<PagedItems<PredictionHistoryItem>> loadDeviceHistory(String serial, {int page = 1}) =>
-      api.predictionHistory(serial, page: page, pageSize: 20);
+      api.predictionHistory(serial, page: page, pageSize: 10);
   Future<PagedItems<CustomerDataSummary>> loadFabrics({int page = 1}) =>
-      api.customerDataList(page: page, pageSize: 20);
+      api.customerDataList(page: page, pageSize: 10);
   Future<CustomerDataDetail> loadFabric(int id) => api.customerData(id);
   Future<bool> saveCustomerData({
     required List<String> preIds,

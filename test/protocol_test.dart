@@ -105,4 +105,8 @@ void main() {
     expect(() => parseBatteryLevel([]), throwsA(isA<AppException>()));
     expect(() => parseBatteryLevel([101]), throwsA(isA<AppException>()));
   });
+  test('Display time drops year and seconds', () {
+    expect(formatDisplayTime('2026-09-23 21:21:57'), '09-23 21:21');
+    expect(formatLocalTime(DateTime(2026, 9, 24, 12, 5, 9)), '09-24 12:05');
+  });
 }

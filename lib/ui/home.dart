@@ -494,7 +494,7 @@ class _WorkbenchResultsState extends State<WorkbenchResults> {
     final app = widget.app;
     final latest = current;
     final older = previous;
-    if (latest == null && older.isEmpty) return const SizedBox.shrink();
+    const radius = RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10)));
     return BrandCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -511,42 +511,72 @@ class _WorkbenchResultsState extends State<WorkbenchResults> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          TwoColumnHeader(app),
-          if (latest != null) ...[
-            TwoColumnRow(
-              time: latest.time,
-              components: latest.components,
-              selecting: selecting,
-              checked: selected.contains(latest.preId),
-              canCheck: latest.preId.isNotEmpty,
+          const SizedBox(height: 12),
+          if (latest == null)
+            Text(app.t('workbench.start_hint'), style: const TextStyle(color: muted, fontSize: 16))
+          else
+            InkWell(
               onLongPress: () => startSelecting(latest),
-              onChecked: (value) => setState(() {
-                if (value) {
-                  selected.add(latest.preId);
-                } else {
-                  selected.remove(latest.preId);
-                }
-              }),
-            ),
-            if (app.multiple)
-              Text(
-                app.t('workbench.result_based', app.captures.length),
-                style: const TextStyle(color: muted, fontSize: 12),
+              onTap: selecting && latest.preId.isNotEmpty
+                  ? () => setState(() {
+                      if (selected.contains(latest.preId)) {
+                        selected.remove(latest.preId);
+                      } else {
+                        selected.add(latest.preId);
+                      }
+                    })
+                  : null,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (selecting) ...[
+                    SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: Checkbox(
+                        value: latest.preId.isNotEmpty && selected.contains(latest.preId),
+                        onChanged: latest.preId.isEmpty
+                            ? null
+                            : (value) => setState(() {
+                                if (value ?? false) {
+                                  selected.add(latest.preId);
+                                } else {
+                                  selected.remove(latest.preId);
+                                }
+                              }),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Expanded(
+                    child: Text(
+                      latest.components,
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
               ),
+            ),
+          if (app.multiple && latest != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              app.t('workbench.result_based', app.captures.length),
+              style: const TextStyle(color: muted, fontSize: 12),
+            ),
           ],
-          if (older.isNotEmpty)
+          if (older.isNotEmpty) ...[
+            const SizedBox(height: 8),
             Theme(
               data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
-                key: ValueKey(selecting || latest == null),
-                initiallyExpanded: selecting || latest == null,
+                initiallyExpanded: false,
                 tilePadding: EdgeInsets.zero,
                 title: Text(
-                  app.t(latest == null ? 'history.recent' : 'history.previous'),
+                  app.t('history.recent'),
                   style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
                 children: [
+                  TwoColumnHeader(app),
                   for (final item in older)
                     TwoColumnRow(
                       time: item.time,
@@ -566,16 +596,22 @@ class _WorkbenchResultsState extends State<WorkbenchResults> {
                 ],
               ),
             ),
+          ],
           if (selecting) ...[
             const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(onPressed: cancel, child: Text(app.t('common.cancel'))),
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(shape: radius),
+                    onPressed: cancel,
+                    child: Text(app.t('common.cancel')),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton(
+                    style: FilledButton.styleFrom(shape: radius),
                     onPressed: app.busy ? null : save,
                     child: Text(app.t('history.save')),
                   ),

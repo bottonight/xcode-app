@@ -70,7 +70,10 @@ class TwoColumnRow extends StatelessWidget {
           ],
           Expanded(
             flex: 5,
-            child: Text(time.isEmpty ? '—' : time, style: const TextStyle(fontSize: 13)),
+            child: Text(
+              time.isEmpty ? '—' : formatDisplayTime(time),
+              style: const TextStyle(fontSize: 13),
+            ),
           ),
           Expanded(
             flex: 6,
@@ -96,18 +99,19 @@ class DeviceHistoryPage extends StatefulWidget {
 class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
   final items = <PredictionHistoryItem>[];
   int page = 1, total = 0;
-  bool loadingMore = false;
+  static const pageSize = 10;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) reload();
+      if (mounted) goTo(1);
     });
   }
 
-  Future<void> reload() async {
-    final ok = await widget.app.perform(() async {
-      final loaded = await widget.app.loadDeviceHistory(widget.serial);
+  Future<void> goTo(int target) async {
+    await widget.app.perform(() async {
+      final loaded = await widget.app.loadDeviceHistory(widget.serial, page: target);
       if (!mounted) return;
       setState(() {
         items
@@ -117,23 +121,6 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
         total = loaded.total;
       });
     }, title: 'busy.loading');
-    if (!ok && mounted) setState(() {});
-  }
-
-  Future<void> loadMore() async {
-    if (loadingMore || items.length >= total) return;
-    setState(() => loadingMore = true);
-    try {
-      final loaded = await widget.app.loadDeviceHistory(widget.serial, page: page + 1);
-      if (!mounted) return;
-      setState(() {
-        items.addAll(loaded.items);
-        page = loaded.page;
-        total = loaded.total;
-      });
-    } finally {
-      if (mounted) setState(() => loadingMore = false);
-    }
   }
 
   @override
@@ -142,7 +129,7 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
     return Scaffold(
       appBar: AppBar(title: Text(app.t('devices.history'))),
       body: RefreshIndicator(
-        onRefresh: reload,
+        onRefresh: () => goTo(1),
         child: PageBody(
           children: [
             BrandCard(
@@ -158,11 +145,7 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
                 ],
               ),
             ),
-            if (items.length < total)
-              TextButton(
-                onPressed: loadingMore ? null : loadMore,
-                child: Text(app.t('history.load_more')),
-              ),
+            ListPager(app: app, page: page, total: total, pageSize: pageSize, onPage: goTo),
           ],
         ),
       ),
@@ -180,18 +163,18 @@ class FabricsPage extends StatefulWidget {
 class _FabricsPageState extends State<FabricsPage> {
   final items = <CustomerDataSummary>[];
   int page = 1, total = 0;
-  bool loadingMore = false;
+  static const pageSize = 10;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) reload();
+      if (mounted) goTo(1);
     });
   }
 
-  Future<void> reload() async {
+  Future<void> goTo(int target) async {
     await widget.app.perform(() async {
-      final loaded = await widget.app.loadFabrics();
+      final loaded = await widget.app.loadFabrics(page: target);
       if (!mounted) return;
       setState(() {
         items
@@ -203,29 +186,13 @@ class _FabricsPageState extends State<FabricsPage> {
     }, title: 'busy.loading');
   }
 
-  Future<void> loadMore() async {
-    if (loadingMore || items.length >= total) return;
-    setState(() => loadingMore = true);
-    try {
-      final loaded = await widget.app.loadFabrics(page: page + 1);
-      if (!mounted) return;
-      setState(() {
-        items.addAll(loaded.items);
-        page = loaded.page;
-        total = loaded.total;
-      });
-    } finally {
-      if (mounted) setState(() => loadingMore = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final app = widget.app;
     return Scaffold(
       appBar: AppBar(title: Text(app.t('account.fabrics'))),
       body: RefreshIndicator(
-        onRefresh: reload,
+        onRefresh: () => goTo(1),
         child: PageBody(
           children: [
             BrandCard(
@@ -248,11 +215,7 @@ class _FabricsPageState extends State<FabricsPage> {
                 ],
               ),
             ),
-            if (items.length < total)
-              TextButton(
-                onPressed: loadingMore ? null : loadMore,
-                child: Text(app.t('history.load_more')),
-              ),
+            ListPager(app: app, page: page, total: total, pageSize: pageSize, onPage: goTo),
           ],
         ),
       ),
@@ -325,13 +288,16 @@ class _FabricDetailPageState extends State<FabricDetailPage> {
                     children: [
                       for (final image in data.images)
                         if (decodeDataImage(image) != null)
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: Image.memory(
-                              decodeDataImage(image)!,
-                              width: 108,
-                              height: 108,
-                              fit: BoxFit.cover,
+                          GestureDetector(
+                            onTap: () => openImageViewer(context, decodeDataImage(image)!),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.memory(
+                                decodeDataImage(image)!,
+                                width: 108,
+                                height: 108,
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
                     ],
@@ -560,5 +526,120 @@ Uint8List? decodeDataImage(String source) {
     return decoded.isEmpty ? null : decoded;
   } catch (_) {
     return null;
+  }
+}
+
+void openImageViewer(BuildContext context, Uint8List bytes) {
+  Navigator.push<void>(
+    context,
+    MaterialPageRoute<void>(
+      builder: (context) => Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          title: const Text(''),
+        ),
+        body: Center(
+          child: InteractiveViewer(minScale: 1, maxScale: 5, child: Image.memory(bytes)),
+        ),
+      ),
+    ),
+  );
+}
+
+class ListPager extends StatefulWidget {
+  const ListPager({
+    super.key,
+    required this.app,
+    required this.page,
+    required this.total,
+    required this.pageSize,
+    required this.onPage,
+  });
+  final AppModel app;
+  final int page, total, pageSize;
+  final Future<void> Function(int page) onPage;
+  @override
+  State<ListPager> createState() => _ListPagerState();
+}
+
+class _ListPagerState extends State<ListPager> {
+  late final controller = TextEditingController(text: '${widget.page}');
+  @override
+  void didUpdateWidget(covariant ListPager oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.page != widget.page) controller.text = '${widget.page}';
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  int get pageCount =>
+      widget.total <= 0 ? 1 : ((widget.total + widget.pageSize - 1) ~/ widget.pageSize);
+
+  Future<void> jump() async {
+    final parsed = int.tryParse(controller.text.trim());
+    if (parsed == null) return;
+    await widget.onPage(parsed.clamp(1, pageCount));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.total <= widget.pageSize) return const SizedBox.shrink();
+    final app = widget.app;
+    final busy = app.busy;
+    return BrandCard(
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: busy || widget.page <= 1 ? null : () => widget.onPage(widget.page - 1),
+                  child: Text(app.t('history.prev')),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  '${widget.page} / $pageCount',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: busy || widget.page >= pageCount
+                      ? null
+                      : () => widget.onPage(widget.page + 1),
+                  child: Text(app.t('history.next')),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              SizedBox(
+                width: 72,
+                child: TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  enabled: !busy,
+                  decoration: const InputDecoration(isDense: true),
+                  onSubmitted: (_) => jump(),
+                ),
+              ),
+              const SizedBox(width: 12),
+              FilledButton(onPressed: busy ? null : jump, child: Text(app.t('history.jump'))),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }

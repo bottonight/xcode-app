@@ -217,7 +217,15 @@ String formatComponents(dynamic value) {
 
 String formatLocalTime(DateTime time) {
   String two(int value) => value.toString().padLeft(2, '0');
-  return '${time.year}-${two(time.month)}-${two(time.day)} ${two(time.hour)}:${two(time.minute)}:${two(time.second)}';
+  return '${two(time.month)}-${two(time.day)} ${two(time.hour)}:${two(time.minute)}';
+}
+
+String formatDisplayTime(String time) {
+  final match = RegExp(r'(?:(\d{4})-)?(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{2})(?::\d{2})?')
+      .firstMatch(time.trim());
+  if (match == null) return time;
+  String two(String value) => value.padLeft(2, '0');
+  return '${two(match.group(2)!)}-${two(match.group(3)!)} ${two(match.group(4)!)}:${match.group(5)!}';
 }
 
 Map<String, String> stringMap(dynamic value) {

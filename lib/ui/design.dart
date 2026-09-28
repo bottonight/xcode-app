@@ -47,6 +47,12 @@ ThemeData fabricTheme() => ThemeData(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ),
   ),
+  outlinedButtonTheme: OutlinedButtonThemeData(
+    style: OutlinedButton.styleFrom(
+      minimumSize: const Size(0, 46),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ),
+  ),
   inputDecorationTheme: const InputDecorationTheme(
     border: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFE5E6EB))),
     enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFE5E6EB))),

@@ -97,6 +97,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining(app.t('workbench.tip_1')), findsOneWidget);
     expect(find.text(app.t('workbench.start_scan')), findsOneWidget);
+    expect(find.text(app.t('workbench.start_hint')), findsOneWidget);
     app.result = '棉 80%';
     app.resultTime = DateTime(2026, 9, 24, 12);
     app.currentPreId = 'p1';
@@ -107,7 +108,9 @@ void main() {
     app.notifyListeners();
     await tester.pumpAndSettle();
     expect(find.text('棉 80%'), findsWidgets);
-    expect(find.text(app.t('history.previous')), findsOneWidget);
+    expect(find.text(app.t('history.recent')), findsOneWidget);
+    expect(find.text(app.t('history.previous')), findsNothing);
+    expect(find.text(app.t('history.time')), findsNothing);
     await tester.tap(find.text(app.t('tab.account')));
     await tester.pumpAndSettle();
     expect(find.text('Test'), findsOneWidget);
