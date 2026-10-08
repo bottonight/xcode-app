@@ -6,16 +6,19 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'gsm.dart';
 import 'models.dart';
 import 'services/api.dart';
 import 'services/bluetooth.dart';
+import 'services/gsm_api.dart';
 
 bool isChineseLanguage(Locale locale) => locale.languageCode.toLowerCase() == 'zh';
 
 class AppModel extends ChangeNotifier {
-  AppModel({FabricApi? api, FabricBluetooth? bluetooth})
+  AppModel({FabricApi? api, FabricBluetooth? bluetooth, GsmApi? gsmApi})
     : api = api ?? FabricApi(),
-      bluetooth = bluetooth ?? FabricBluetooth() {
+      bluetooth = bluetooth ?? FabricBluetooth(),
+      gsmApi = gsmApi ?? GsmApi() {
     this.bluetooth.addListener(notifyListeners);
     this.bluetooth.acceptsHardwareScan = () =>
         !busy && route == HomeRoute.workbench && (!multiple || captures.length < 9);
@@ -52,6 +55,7 @@ class AppModel extends ChangeNotifier {
   }
   final FabricApi api;
   final FabricBluetooth bluetooth;
+  final GsmApi gsmApi;
   // Keep the native app's Keychain service/account so iOS upgrades can reuse a session.
   final FlutterSecureStorage _secure = const FlutterSecureStorage(
     iOptions: IOSOptions(
@@ -78,6 +82,14 @@ class AppModel extends ChangeNotifier {
   List<AnalysisMode> modes = [];
   List<Capture> captures = [];
   List<ManagedDevice> managedDevices = [];
+  List<GsmDevice> gsmDevices = [];
+  String? lastGsmDeviceId;
+  String get gsmAccount {
+    final current = session;
+    if (current == null) return '';
+    return current.phone.isNotEmpty ? current.phone : current.email;
+  }
+
   List<PredictionHistoryItem> recentPredictions = [];
   String? currentPreId;
   int? batteryPercent;
@@ -245,6 +257,8 @@ class AppModel extends ChangeNotifier {
     session = null;
     api.token = null;
     managedDevices = [];
+    gsmDevices = [];
+    lastGsmDeviceId = null;
     _clearDevice();
     route = HomeRoute.projects;
     await bluetooth.stopScan();
@@ -466,7 +480,65 @@ class AppModel extends ChangeNotifier {
   }, title: 'busy.scanning');
   Future<bool> loadDevices() => perform(() async {
     managedDevices = await api.devices(session!);
+    await refreshGsmDevices();
   });
+
+  Future<void> refreshGsmDevices() async {
+    final account = gsmAccount;
+    if (account.isEmpty) {
+      gsmDevices = [];
+      lastGsmDeviceId = null;
+      return;
+    }
+    lastGsmDeviceId = _preferences?.getString('gsm-last-$account');
+    final cached = _readGsmCache(account);
+    try {
+      gsmDevices = mergeGsmDevices(cached, await gsmApi.devices(account));
+    } catch (_) {
+      gsmDevices = cached;
+    }
+    await _writeGsmCache(account);
+  }
+
+  Future<void> selectGsmDevice(String id) async {
+    lastGsmDeviceId = id;
+    final account = gsmAccount;
+    if (account.isNotEmpty) await _preferences?.setString('gsm-last-$account', id);
+  }
+
+  Future<void> rememberGsmDevice(GsmDevice device) async {
+    if (device.id.isEmpty) return;
+    gsmDevices = mergeGsmDevices(gsmDevices, [device]);
+    lastGsmDeviceId = device.id;
+    final account = gsmAccount;
+    if (account.isNotEmpty) {
+      await _preferences?.setString('gsm-last-$account', device.id);
+      await _writeGsmCache(account);
+    }
+    notifyListeners();
+  }
+
+  List<GsmDevice> _readGsmCache(String account) {
+    final raw = _preferences?.getString('gsm-devices-$account');
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final list = jsonDecode(raw) as List;
+      return [
+        for (final item in list)
+          if (item is Map) GsmDevice.fromJson(Map<String, dynamic>.from(item)),
+      ].where((device) => device.id.isNotEmpty).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _writeGsmCache(String account) async {
+    await _preferences?.setString(
+      'gsm-devices-$account',
+      jsonEncode([for (final device in gsmDevices) device.toJson()]),
+    );
+  }
+
   Future<PagedItems<PredictionHistoryItem>> loadDeviceHistory(String serial, {int page = 1}) =>
       api.predictionHistory(serial, page: page, pageSize: 10);
   Future<PagedItems<CustomerDataSummary>> loadFabrics({int page = 1}) =>
@@ -486,6 +558,7 @@ class AppModel extends ChangeNotifier {
     bluetooth.removeListener(notifyListeners);
     bluetooth.dispose();
     api.dispose();
+    gsmApi.dispose();
     super.dispose();
   }
 }

@@ -5,6 +5,7 @@ import '../app_model.dart';
 import '../models.dart';
 import 'design.dart';
 import 'fabrics.dart';
+import 'gsm_history.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage(this.app, {super.key});
@@ -21,19 +22,36 @@ class HomePage extends StatelessWidget {
       LayoutBuilder(
         builder: (context, constraints) {
           final columns = MediaQuery.textScalerOf(context).scale(16) > 25 ? 1 : 2;
+          final projects = <({IconData icon, String title, VoidCallback? onTap})>[
+            (
+              icon: Icons.monitor_heart_outlined,
+              title: app.t('project.composition'),
+              onTap: app.discover,
+            ),
+            (
+              icon: Icons.scale_outlined,
+              title: app.t('project.gsm'),
+              onTap: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute<void>(builder: (_) => GsmHistoryPage(app)),
+              ),
+            ),
+            (icon: Icons.show_chart, title: app.t('project.coming_soon'), onTap: null),
+            (icon: Icons.grid_on, title: app.t('project.coming_soon'), onTap: null),
+          ];
           return Wrap(
             spacing: 14,
             runSpacing: 14,
             children: [
-              for (var i = 0; i < 4; i++)
+              for (final project in projects)
                 SizedBox(
                   width: (constraints.maxWidth - 14 * (columns - 1)) / columns,
                   child: Semantics(
                     button: true,
-                    enabled: i == 0,
+                    enabled: project.onTap != null,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(20),
-                      onTap: i == 0 ? app.discover : null,
+                      onTap: project.onTap,
                       child: BrandCard(
                         child: SizedBox(
                           height: 142,
@@ -41,23 +59,18 @@ class HomePage extends StatelessWidget {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(
-                                [
-                                  Icons.monitor_heart_outlined,
-                                  Icons.local_florist_outlined,
-                                  Icons.show_chart,
-                                  Icons.grid_on,
-                                ][i],
+                                project.icon,
                                 size: 34,
-                                color: i == 0 ? indigo : muted,
+                                color: project.onTap == null ? muted : indigo,
                               ),
                               const SizedBox(height: 14),
                               Text(
-                                app.t(i == 0 ? 'project.composition' : 'project.coming_soon'),
+                                project.title,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 17,
                                   fontWeight: FontWeight.w600,
-                                  color: i == 0 ? Colors.black87 : muted,
+                                  color: project.onTap == null ? muted : Colors.black87,
                                 ),
                               ),
                             ],
