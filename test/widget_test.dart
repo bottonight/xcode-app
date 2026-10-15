@@ -30,7 +30,15 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('FabricLab'), findsOneWidget);
       expect(find.text(app.t('auth.forgot_password')), findsOneWidget);
-      expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed, isNull);
+      expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed, isNotNull);
+      await tester.tap(find.byType(FilledButton));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(app.t(app.allowsPhone ? 'error.account_required' : 'error.email_required')),
+        findsOneWidget,
+      );
+      await tester.tap(find.text(app.t('common.ok')));
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text(app.t('auth.forgot_password')));
       await tester.tap(find.text(app.t('auth.forgot_password')));
       await tester.pumpAndSettle();
@@ -47,6 +55,31 @@ void main() {
       expect(find.text(app.t('auth.username')), findsOneWidget);
       expect(find.text(app.t('auth.forgot_password')), findsNothing);
       expect(find.byType(TextField), findsNWidgets(6));
+      await tester.enterText(find.byType(TextField).at(0), 'user@example.com');
+      await tester.enterText(find.byType(TextField).at(1), '12345');
+      final registerButton = find.widgetWithText(FilledButton, app.t('auth.register'));
+      await tester.ensureVisible(registerButton);
+      await tester.tap(registerButton);
+      await tester.pumpAndSettle();
+      expect(find.text(app.t('error.invalid_password')), findsOneWidget);
+      await tester.tap(find.text(app.t('common.ok')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).at(1), '123456');
+      await tester.enterText(find.byType(TextField).at(2), '654321');
+      await tester.ensureVisible(registerButton);
+      await tester.tap(registerButton);
+      await tester.pumpAndSettle();
+      expect(find.text(app.t('error.password_mismatch')), findsOneWidget);
+      await tester.tap(find.text(app.t('common.ok')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).at(2), '123456');
+      await tester.enterText(find.byType(TextField).at(3), '12');
+      await tester.ensureVisible(registerButton);
+      await tester.tap(registerButton);
+      await tester.pumpAndSettle();
+      expect(find.text(app.t('error.invalid_code')), findsOneWidget);
+      await tester.tap(find.text(app.t('common.ok')));
+      await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       app.dispose();

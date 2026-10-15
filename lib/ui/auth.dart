@@ -3,7 +3,30 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../app_model.dart';
+import '../models.dart';
 import 'design.dart';
+
+String? authBlockReason(
+  AppModel app, {
+  required String account,
+  required String password,
+  String? confirm,
+  String? code,
+}) {
+  final value = account.trim();
+  if (value.isEmpty) {
+    return app.t(app.allowsPhone ? 'error.account_required' : 'error.email_required');
+  }
+  try {
+    AccountIdentifier.parse(value, allowsPhone: app.allowsPhone);
+  } on AppException catch (error) {
+    return app.t(error.key);
+  }
+  if (password.length < 6) return app.t('error.invalid_password');
+  if (confirm != null && password != confirm) return app.t('error.password_mismatch');
+  if (code != null && code.trim().length < 4) return app.t('error.invalid_code');
+  return null;
+}
 
 class AuthPage extends StatefulWidget {
   const AuthPage(this.app, {super.key});
@@ -54,6 +77,17 @@ class _AuthPageState extends State<AuthPage> {
 
   Future<void> submit() async {
     FocusScope.of(context).unfocus();
+    final reason = authBlockReason(
+      widget.app,
+      account: account.text,
+      password: password.text,
+      confirm: registering ? confirm.text : null,
+      code: registering ? code.text : null,
+    );
+    if (reason != null) {
+      widget.app.showMessage(reason);
+      return;
+    }
     await widget.app.authenticate(
       account.text,
       password.text,
@@ -84,11 +118,6 @@ class _AuthPageState extends State<AuthPage> {
   @override
   Widget build(BuildContext context) {
     final app = widget.app;
-    final canSubmit =
-        !app.busy &&
-        account.text.trim().isNotEmpty &&
-        password.text.length >= 6 &&
-        (!registering || (password.text == confirm.text && code.text.trim().length >= 4));
     return Scaffold(
       body: SafeArea(
         child: PageBody(
@@ -174,7 +203,7 @@ class _AuthPageState extends State<AuthPage> {
                     ],
                     const SizedBox(height: 20),
                     FilledButton(
-                      onPressed: canSubmit ? submit : null,
+                      onPressed: app.busy ? null : submit,
                       child: Text(app.t(registering ? 'auth.register' : 'auth.login')),
                     ),
                     if (!registering)
@@ -262,6 +291,17 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
   Future<void> submit() async {
     FocusScope.of(context).unfocus();
+    final reason = authBlockReason(
+      widget.app,
+      account: account.text,
+      password: password.text,
+      confirm: confirm.text,
+      code: code.text,
+    );
+    if (reason != null) {
+      widget.app.showMessage(reason);
+      return;
+    }
     if (await widget.app.updatePassword(account.text, password.text, confirm.text, code.text) &&
         mounted) {
       Navigator.pop(context);
@@ -288,12 +328,6 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   @override
   Widget build(BuildContext context) {
     final app = widget.app;
-    final canSubmit =
-        !app.busy &&
-        account.text.trim().isNotEmpty &&
-        password.text.length >= 6 &&
-        password.text == confirm.text &&
-        code.text.trim().length >= 4;
     return Scaffold(
       appBar: AppBar(title: Text(app.t('auth.reset_title'))),
       body: SafeArea(
@@ -343,7 +377,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                     ),
                     const SizedBox(height: 20),
                     FilledButton(
-                      onPressed: canSubmit ? submit : null,
+                      onPressed: app.busy ? null : submit,
                       child: Text(app.t('auth.reset')),
                     ),
                   ],
