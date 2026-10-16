@@ -144,8 +144,8 @@ class FabricApi {
       );
   Future<List<ManagedDevice>> devices(UserSession session) async {
     final data = await request('/apps/LoginPage/getDevices', query: session.query);
-    return ((data['devices'] as List?) ?? [])
-        .map((j) => ManagedDevice.fromJson(Map<String, dynamic>.from(j)))
+    return jsonList(data['devices'])
+        .map((item) => ManagedDevice.fromJson(Map<String, dynamic>.from(item as Map)))
         .toList();
   }
 
@@ -154,7 +154,7 @@ class FabricApi {
       '/apps/LoginPage/getSharedUser',
       body: {...session.query, 'serial_number': device.serial},
     );
-    return List<String>.from(data['shared_user'] ?? []);
+    return jsonList(data['shared_user']).map((item) => '$item').toList();
   }
 
   Future<void> share(
@@ -239,7 +239,7 @@ class FabricApi {
       body: {'serial_number': serial, 'page': page, 'page_size': pageSize},
     );
     return PagedItems(
-      items: ((data['list'] as List?) ?? [])
+      items: jsonList(data['list'])
           .map((item) => PredictionHistoryItem.fromJson(Map<String, dynamic>.from(item as Map)))
           .toList(),
       page: intValue(data['page'] ?? page),
@@ -269,7 +269,7 @@ class FabricApi {
       body: {'page': page, 'page_size': pageSize},
     );
     return PagedItems(
-      items: ((data['list'] as List?) ?? [])
+      items: jsonList(data['list'])
           .map((item) => CustomerDataSummary.fromJson(Map<String, dynamic>.from(item as Map)))
           .toList(),
       page: intValue(data['page'] ?? page),

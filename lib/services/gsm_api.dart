@@ -22,7 +22,7 @@ class GsmApi {
       '/weixin/getDevices',
       body: {'user_tel': account, 'phone_number': account},
     );
-    return ((data['devices'] as List?) ?? [])
+    return jsonList(data['devices'])
         .map((item) => GsmDevice.fromJson(Map<String, dynamic>.from(item as Map)))
         .where((device) => device.id.isNotEmpty)
         .toList();
@@ -39,7 +39,7 @@ class GsmApi {
       method: 'GET',
       query: {'device_id': deviceId, 'page': '$page', 'page_size': '$pageSize'},
     );
-    final items = ((data['datas'] as List?) ?? [])
+    final items = jsonList(data['datas'])
         .map((item) => GsmRecord.fromJson(Map<String, dynamic>.from(item as Map)))
         .toList();
     return GsmPage(items: items, total: intValue(data['total']), page: page, pageSize: pageSize);
@@ -106,7 +106,7 @@ class GsmApi {
       method: 'GET',
       query: {'device_id': deviceId},
     );
-    return ((data['phones'] as List?) ?? []).map((phone) => '$phone').toList();
+    return jsonList(data['phones']).map((phone) => '$phone').toList();
   }
 
   Future<void> cancelShare(String deviceId, String phone) async {
@@ -123,7 +123,7 @@ class GsmApi {
       method: 'GET',
       query: {'device_id': deviceId},
     );
-    return ((data['bindings'] as List?) ?? []).map((phone) => '$phone').toList();
+    return jsonList(data['bindings']).map((phone) => '$phone').toList();
   }
 
   Future<String> latestVersion({

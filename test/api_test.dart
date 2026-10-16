@@ -45,6 +45,45 @@ void main() {
     expect(user.email, 'user@example.com');
     api.dispose();
   });
+  test('Empty list fields may arrive as objects', () async {
+    expect(AnalysisMode.parse({}), isEmpty);
+    final api = FabricApi(
+      client: MockClient((request) async {
+        final path = request.url.path;
+        if (path.endsWith('getSharedUser')) {
+          return http.Response(jsonEncode({'status': true, 'shared_user': {}}), 200);
+        }
+        if (path.endsWith('getPredictionHistory')) {
+          return http.Response(jsonEncode({'status': true, 'list': {}, 'total': 0}), 200);
+        }
+        if (path.endsWith('getCustomerDataList')) {
+          return http.Response(jsonEncode({'status': true, 'list': {}}), 200);
+        }
+        return http.Response(
+          jsonEncode({'status': true, 'id': 1, 'data': {}, 'images': {}, 'components': {}}),
+          200,
+        );
+      }),
+    )..token = 'token';
+    const device = ManagedDevice('sn', 'Device', 0, {}, false);
+    expect(await api.sharedUsers(device, session), isEmpty);
+    expect((await api.predictionHistory('sn')).items, isEmpty);
+    expect((await api.customerDataList()).items, isEmpty);
+    final detail = await api.customerData(1);
+    expect(detail.images, isEmpty);
+    expect(detail.components, isEmpty);
+    api.dispose();
+  });
+  test('Empty device payload is an object and still yields no devices', () async {
+    final api = FabricApi(
+      client: MockClient((request) async {
+        expect(request.url.path, '/apps/LoginPage/getDevices');
+        return http.Response(jsonEncode({'status': true, 'devices': {}}), 200);
+      }),
+    )..token = 'token';
+    expect(await api.devices(session), isEmpty);
+    api.dispose();
+  });
   test('Device requests carry language and authorization; 401 expires session', () async {
     final api =
         FabricApi(

@@ -1,5 +1,10 @@
+import 'dart:convert';
+
 import 'package:fabriclab/gsm.dart';
+import 'package:fabriclab/services/gsm_api.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 void main() {
   test('device sections split only when both kinds exist', () {
@@ -61,5 +66,28 @@ void main() {
       const [GsmDevice(id: 'a', name: '新')],
     );
     expect(merged.map((device) => '${device.id}:${device.name}'), ['a:新', 'b:本地']);
+  });
+
+  test('Empty GSM collections arrive as objects', () async {
+    final api = GsmApi(
+      client: MockClient((request) async {
+        final path = request.url.path;
+        if (path.endsWith('getDevices')) {
+          return http.Response(jsonEncode({'status': true, 'devices': {}}), 200);
+        }
+        if (path.endsWith('getHistory')) {
+          return http.Response(jsonEncode({'status': true, 'datas': {}, 'total': 0}), 200);
+        }
+        if (path.endsWith('getSharedPhones')) {
+          return http.Response(jsonEncode({'status': true, 'phones': {}}), 200);
+        }
+        return http.Response(jsonEncode({'status': true, 'bindings': {}}), 200);
+      }),
+    );
+    expect(await api.devices('13800138000'), isEmpty);
+    expect((await api.history('device')).items, isEmpty);
+    expect(await api.sharedPhones('device'), isEmpty);
+    expect(await api.bindStatus('device'), isEmpty);
+    api.dispose();
   });
 }

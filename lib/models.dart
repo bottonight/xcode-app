@@ -14,6 +14,9 @@ enum DeviceKind {
 }
 
 int intValue(dynamic value) => value == true ? 1 : int.tryParse('$value') ?? 0;
+
+/// Several endpoints send `{}` when a list is empty.
+List<dynamic> jsonList(dynamic value) => value is List ? value : const [];
 bool succeeded(dynamic value) =>
     value == true || ['succeed', 'success', 'true'].contains('$value'.toLowerCase());
 
@@ -147,7 +150,7 @@ class AnalysisMode {
     j['name_en'] as String?,
     intValue(j['use_count_month']),
   );
-  static List<AnalysisMode> parse(dynamic list) => ((list as List?) ?? [])
+  static List<AnalysisMode> parse(dynamic list) => jsonList(list)
       .map((e) => AnalysisMode.fromJson(Map<String, dynamic>.from(e as Map)))
       .where((m) => m.id != 'LINE' && m.id != 'REPORT')
       .toList();
@@ -281,7 +284,7 @@ class CustomerDataDetail {
   factory CustomerDataDetail.fromJson(Map<String, dynamic> json) => CustomerDataDetail(
     id: intValue(json['id']),
     data: stringMap(json['data']),
-    images: List<String>.from(json['images'] ?? const []),
-    components: ((json['components'] as List?) ?? []).map(formatComponents).toList(),
+    images: jsonList(json['images']).map((item) => '$item').toList(),
+    components: jsonList(json['components']).map(formatComponents).toList(),
   );
 }
