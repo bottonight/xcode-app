@@ -5,7 +5,6 @@ import '../app_model.dart';
 import '../models.dart';
 import 'design.dart';
 import 'fabrics.dart';
-import 'gsm_history.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage(this.app, {super.key});
@@ -28,14 +27,7 @@ class HomePage extends StatelessWidget {
               title: app.t('project.composition'),
               onTap: app.discover,
             ),
-            (
-              icon: Icons.scale_outlined,
-              title: app.t('project.gsm'),
-              onTap: () => Navigator.push<void>(
-                context,
-                MaterialPageRoute<void>(builder: (_) => GsmHistoryPage(app)),
-              ),
-            ),
+            (icon: Icons.scale_outlined, title: app.t('project.gsm'), onTap: null),
             (icon: Icons.show_chart, title: app.t('project.coming_soon'), onTap: null),
             (icon: Icons.grid_on, title: app.t('project.coming_soon'), onTap: null),
           ];

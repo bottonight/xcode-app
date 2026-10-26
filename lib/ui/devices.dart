@@ -3,37 +3,24 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../app_model.dart';
-import '../gsm.dart';
 import '../models.dart';
 import 'design.dart';
 import 'fabrics.dart';
-import 'gsm_history.dart';
-import 'gsm_scan.dart';
 
 class DevicesPage extends StatelessWidget {
   const DevicesPage(this.app, {super.key});
   final AppModel app;
 
-  Future<void> _addGsm(BuildContext context) async {
-    await app.bluetooth.stopScan();
-    if (!context.mounted) return;
-    await Navigator.push<void>(context, MaterialPageRoute<void>(builder: (_) => GsmScanPage(app)));
-    if (!context.mounted) return;
-    await app.loadDevices();
-  }
-
   @override
   Widget build(BuildContext context) {
     final composition = app.managedDevices;
-    final gsm = app.gsmDevices;
-    final split = splitDeviceSections(composition: composition.length, gsm: gsm.length);
     return RefreshIndicator(
       onRefresh: () async {
         await app.loadDevices();
       },
       child: PageBody(
         children: [
-          if (composition.isEmpty && gsm.isEmpty)
+          if (composition.isEmpty)
             EmptyPanel(
               icon: Icons.sensors,
               title: app.t('devices.empty'),
@@ -44,34 +31,11 @@ class DevicesPage extends StatelessWidget {
                 label: Text(app.t('discovery.rescan')),
               ),
             ),
-          if (split) _sectionTitle(app.t('gsm.section_composition')),
           for (final device in composition) _compositionCard(context, device),
-          if (split) ...[const _DeviceDivider(), _sectionTitle(app.t('gsm.section_gsm'))],
-          for (final device in gsm) _gsmCard(context, device),
-          Center(
-            child: IconButton.filled(
-              tooltip: app.t('gsm.add'),
-              onPressed: () => _addGsm(context),
-              icon: const Icon(Icons.add),
-              style: IconButton.styleFrom(
-                backgroundColor: indigo,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(52, 52),
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
-
-  Widget _sectionTitle(String text) => Padding(
-    padding: const EdgeInsets.only(left: 4),
-    child: Text(
-      text,
-      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: muted),
-    ),
-  );
 
   Widget _compositionCard(BuildContext context, ManagedDevice device) => BrandCard(
     padding: EdgeInsets.zero,
@@ -92,36 +56,6 @@ class DevicesPage extends StatelessWidget {
         context,
         MaterialPageRoute<void>(builder: (_) => DeviceDetailPage(app, device)),
       ),
-    ),
-  );
-
-  Widget _gsmCard(BuildContext context, GsmDevice device) => BrandCard(
-    padding: EdgeInsets.zero,
-    child: ListTile(
-      contentPadding: const EdgeInsets.all(16),
-      title: Text(
-        device.label(app.t('gsm.unknown_device')),
-        style: const TextStyle(fontWeight: FontWeight.w600),
-      ),
-      subtitle: Padding(padding: const EdgeInsets.only(top: 6), child: Text(device.id)),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute<void>(builder: (_) => GsmHistoryPage(app, initialDeviceId: device.id)),
-      ),
-    ),
-  );
-}
-
-class _DeviceDivider extends StatelessWidget {
-  const _DeviceDivider();
-  @override
-  Widget build(BuildContext context) => Container(
-    height: 8,
-    margin: const EdgeInsets.symmetric(vertical: 4),
-    decoration: BoxDecoration(
-      color: const Color(0xFFE4E6EE),
-      borderRadius: BorderRadius.circular(4),
     ),
   );
 }
