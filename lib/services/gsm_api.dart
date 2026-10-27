@@ -16,16 +16,26 @@ class GsmApi {
           );
   final http.Client _client;
   final String baseUrl;
+  String? token;
 
-  Future<List<GsmDevice>> devices(String account) async {
-    final data = await _send(
-      '/weixin/getDevices',
-      body: {'user_tel': account, 'phone_number': account},
-    );
-    return jsonList(data['devices'])
-        .map((item) => GsmDevice.fromJson(Map<String, dynamic>.from(item as Map)))
-        .where((device) => device.id.isNotEmpty)
-        .toList();
+  Future<List<GsmDevice>> devices() async {
+    final devices = <GsmDevice>[];
+    var page = 1;
+    const pageSize = 50;
+    while (true) {
+      final data = await _send('/weixin/getDevices', body: {'page': page, 'page_size': pageSize});
+      final batch = jsonList(data['devices'])
+          .map((item) => GsmDevice.fromJson(Map<String, dynamic>.from(item as Map)))
+          .where((device) => device.id.isNotEmpty)
+          .toList();
+      devices.addAll(batch);
+      final total = intValue(data['total']);
+      if (batch.isEmpty || batch.length < pageSize || (total > 0 && devices.length >= total)) {
+        return devices;
+      }
+      page++;
+      if (page > 40) return devices;
+    }
   }
 
   Future<GsmPage> history(
@@ -64,40 +74,36 @@ class GsmApi {
     );
   }
 
-  Future<void> deleteData(String deviceId, String phone, List<String> ids) async {
+  Future<void> deleteData(String deviceId, List<String> ids) async {
     await _send(
       '/weixin/deleteData',
       body: {
         'device_id': deviceId,
-        'user_tel': phone,
         'data_ids': [for (final id in ids) int.tryParse(id) ?? id],
       },
     );
   }
 
-  Future<void> rename(String account, String deviceId, String name) async {
+  Future<void> rename(String deviceId, String name) async {
     await _send(
       '/weixin/modifyDeviceName',
       method: 'GET',
-      query: {'user_tel': account, 'device_id': deviceId, 'new_name': name},
+      query: {'device_id': deviceId, 'new_name': name},
     );
   }
 
-  Future<String?> deviceName(String account, String deviceId) async {
+  Future<String?> deviceName(String deviceId) async {
     final data = await _send(
       '/weixin/getDeviceName',
       method: 'GET',
-      query: {'user_tel': account, 'device_id': deviceId},
+      query: {'device_id': deviceId},
     );
     final name = '${data['device_name'] ?? ''}'.trim();
     return name.isEmpty ? null : name;
   }
 
-  Future<void> share(String deviceId, String owner, String phone) async {
-    await _send(
-      '/weixin/shareDevice',
-      body: {'device_id': deviceId, 'user_tel': owner, 'share_tel': phone},
-    );
+  Future<void> share(String deviceId, String phone) async {
+    await _send('/weixin/shareDevice', body: {'device_id': deviceId, 'share_tel': phone});
   }
 
   Future<List<String>> sharedPhones(String deviceId) async {
@@ -109,12 +115,19 @@ class GsmApi {
     return jsonList(data['phones']).map((phone) => '$phone').toList();
   }
 
-  Future<void> cancelShare(String deviceId, String phone) async {
-    await _send('/weixin/cancelShare', body: {'device_id': deviceId, 'user_tel': phone});
+  Future<void> cancelShare(String deviceId, String account) async {
+    await _send(
+      '/weixin/cancelShare',
+      body: {
+        'device_id': deviceId,
+        if (account.contains('@')) 'email': account,
+        if (!account.contains('@')) 'phone_number': account,
+      },
+    );
   }
 
-  Future<void> bind(String account, String deviceId) async {
-    await _send('/weixin/bindDevice', body: {'user_tel': account, 'device_id': deviceId});
+  Future<void> bind(String deviceId) async {
+    await _send('/weixin/bindDevice', body: {'device_id': deviceId});
   }
 
   Future<List<String>> bindStatus(String deviceId) async {
@@ -165,12 +178,16 @@ class GsmApi {
     Map<String, dynamic>? body,
   }) async {
     final uri = Uri.parse(baseUrl).resolve(path).replace(queryParameters: query);
-    final headers = {'Content-Type': 'application/json'};
+    final headers = {
+      'Content-Type': 'application/json',
+      if (token != null && token!.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
     final response =
         await (method == 'GET'
                 ? _client.get(uri, headers: headers)
                 : _client.post(uri, headers: headers, body: jsonEncode(body ?? {})))
             .timeout(const Duration(seconds: 20));
+    if (response.statusCode == 401) throw const AppException('error.unauthorized');
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw AppException('error.http', response.statusCode);
     }

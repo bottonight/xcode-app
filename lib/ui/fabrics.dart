@@ -145,7 +145,14 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
                 ],
               ),
             ),
-            ListPager(app: app, page: page, total: total, pageSize: pageSize, onPage: goTo),
+            ListPager(
+              app: app,
+              page: page,
+              total: total,
+              pageSize: pageSize,
+              onPage: goTo,
+              alignJumpEnd: true,
+            ),
           ],
         ),
       ),
@@ -556,10 +563,12 @@ class ListPager extends StatefulWidget {
     required this.total,
     required this.pageSize,
     required this.onPage,
+    this.alignJumpEnd = false,
   });
   final AppModel app;
   final int page, total, pageSize;
   final Future<void> Function(int page) onPage;
+  final bool alignJumpEnd;
   @override
   State<ListPager> createState() => _ListPagerState();
 }
@@ -622,6 +631,9 @@ class _ListPagerState extends State<ListPager> {
           ),
           const SizedBox(height: 12),
           Row(
+            mainAxisAlignment: widget.alignJumpEnd
+                ? MainAxisAlignment.end
+                : MainAxisAlignment.start,
             children: [
               SizedBox(
                 width: 72,

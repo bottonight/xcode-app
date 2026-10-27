@@ -124,7 +124,7 @@ class AppModel extends ChangeNotifier {
         }
       }
     } catch (_) {
-      api.token = null;
+      _applyToken(null);
       session = null;
       message = t('error.auto_login_failed');
     }
@@ -133,12 +133,12 @@ class AppModel extends ChangeNotifier {
   }
 
   Future<void> _restoreWithAutoLogin(String token) async {
-    api.token = token;
+    _applyToken(token);
     try {
       final restored = await api.autoLogin(token);
       await _persist(restored);
     } on AppException catch (error) {
-      api.token = null;
+      _applyToken(null);
       session = null;
       if (error.key == 'error.unauthorized') {
         await _secure.delete(key: 'user-session');
@@ -147,15 +147,20 @@ class AppModel extends ChangeNotifier {
         message = error.key == 'server' ? '${error.detail}' : t('error.auto_login_failed');
       }
     } catch (_) {
-      api.token = null;
+      _applyToken(null);
       session = null;
       message = t('error.auto_login_failed');
     }
   }
 
+  void _applyToken(String? value) {
+    api.token = value;
+    gsmApi.token = value;
+  }
+
   Future<void> _persist(UserSession value) async {
     session = value;
-    api.token = value.token;
+    _applyToken(value.token);
     await _secure.write(key: 'user-session', value: jsonEncode(value.toJson()));
   }
 
@@ -255,7 +260,7 @@ class AppModel extends ChangeNotifier {
   }, title: 'busy.updating_profile');
   Future<void> signOut() async {
     session = null;
-    api.token = null;
+    _applyToken(null);
     managedDevices = [];
     gsmDevices = [];
     lastGsmDeviceId = null;
@@ -493,7 +498,10 @@ class AppModel extends ChangeNotifier {
     lastGsmDeviceId = _preferences?.getString('gsm-last-$account');
     final cached = _readGsmCache(account);
     try {
-      gsmDevices = mergeGsmDevices(cached, await gsmApi.devices(account));
+      gsmDevices = mergeGsmDevices(cached, await gsmApi.devices());
+    } on AppException catch (error) {
+      if (error.key == 'error.unauthorized') rethrow;
+      gsmDevices = cached;
     } catch (_) {
       gsmDevices = cached;
     }

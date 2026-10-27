@@ -81,6 +81,8 @@
   "share.existing": "Shared with",
   "share.empty": "Not shared with anyone yet",
   "share.revoke": "Remove",
+  "share.revoke_title": "Remove sharing",
+  "share.revoke_confirm": "Remove sharing with %@?",
   "account.title": "Me",
   "account.permissions": "Permissions",
   "account.admin_level": "Admin level",

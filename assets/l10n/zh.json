@@ -81,6 +81,8 @@
   "share.existing": "已共享",
   "share.empty": "尚未分享给其他用户",
   "share.revoke": "取消",
+  "share.revoke_title": "取消分享",
+  "share.revoke_confirm": "确定取消对 %@ 的分享？",
   "account.title": "我的",
   "account.permissions": "权限",
   "account.admin_level": "管理员等级",

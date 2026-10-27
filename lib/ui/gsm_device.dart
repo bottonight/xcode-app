@@ -85,19 +85,19 @@ class _GsmDevicePageState extends State<GsmDevicePage> {
   }
 
   Future<void> _syncName(GsmHardwareInfo info) async {
-    final account = widget.app.gsmAccount;
-    if (account.isEmpty) return;
     try {
-      final server = await widget.app.gsmApi.deviceName(account, info.deviceId);
+      final server = await widget.app.gsmApi.deviceName(info.deviceId);
       if (!mounted) return;
       if (server == null) {
-        await widget.app.gsmApi.rename(account, info.deviceId, _name);
+        await widget.app.gsmApi.rename(info.deviceId, _name);
         return;
       }
       if (server != link.displayName) {
         await link.writeName(server);
         await widget.app.rememberGsmDevice(GsmDevice(id: info.deviceId, name: server));
       }
+    } on AppException catch (error) {
+      if (error.key == 'error.unauthorized') await widget.app.signOut();
     } catch (_) {}
   }
 
@@ -117,6 +117,16 @@ class _GsmDevicePageState extends State<GsmDevicePage> {
           bindStatus = 'other';
           boundPhone = bindings.first;
         }
+      });
+    } on AppException catch (error) {
+      if (error.key == 'error.unauthorized') {
+        await widget.app.signOut();
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        bindStatus = 'unbound';
+        guideStep = 0;
       });
     } catch (_) {
       if (!mounted) return;
@@ -142,9 +152,7 @@ class _GsmDevicePageState extends State<GsmDevicePage> {
     if (next == null) return;
     final info = link.hardware;
     final ok = await app.perform(() async {
-      if (info != null && app.gsmAccount.isNotEmpty) {
-        await app.gsmApi.rename(app.gsmAccount, info.deviceId, next);
-      }
+      if (info != null) await app.gsmApi.rename(info.deviceId, next);
       await link.writeName(next);
       if (info != null) {
         await app.rememberGsmDevice(GsmDevice(id: info.deviceId, name: next));
@@ -252,9 +260,8 @@ class _GsmDevicePageState extends State<GsmDevicePage> {
     final app = widget.app;
     final ok = await app.perform(() async {
       await link.notifyBound();
-      final account = app.gsmAccount;
-      if (info == null || account.isEmpty) throw const AppException('gsm.need_phone');
-      await app.gsmApi.bind(account, info.deviceId);
+      if (info == null) throw const AppException('gsm.need_phone');
+      await app.gsmApi.bind(info.deviceId);
       await app.rememberGsmDevice(GsmDevice(id: info.deviceId, name: _name));
     }, title: 'gsm.binding');
     if (!ok || !mounted) return;

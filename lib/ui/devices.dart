@@ -289,6 +289,28 @@ class _SharingPageState extends State<SharingPage> {
     }
   }
 
+  Future<void> confirmRevoke(String number) async {
+    final app = widget.app;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(app.t('share.revoke_title')),
+        content: Text(app.t('share.revoke_confirm', number)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(app.t('common.cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(app.t('share.revoke'), style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) await update(number, revoke: true);
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.app,
@@ -333,7 +355,7 @@ class _SharingPageState extends State<SharingPage> {
                       leading: const Icon(Icons.account_circle_outlined),
                       title: Text(user),
                       trailing: TextButton(
-                        onPressed: () => update(user, revoke: true),
+                        onPressed: () => confirmRevoke(user),
                         child: Text(
                           app.t('share.revoke'),
                           style: const TextStyle(color: Colors.red),

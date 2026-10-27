@@ -71,8 +71,10 @@ void main() {
   test('Empty GSM collections arrive as objects', () async {
     final api = GsmApi(
       client: MockClient((request) async {
+        expect(request.headers['authorization'], 'Bearer session-token');
         final path = request.url.path;
         if (path.endsWith('getDevices')) {
+          expect(jsonDecode(request.body), {'page': 1, 'page_size': 50});
           return http.Response(jsonEncode({'status': true, 'devices': {}}), 200);
         }
         if (path.endsWith('getHistory')) {
@@ -84,7 +86,8 @@ void main() {
         return http.Response(jsonEncode({'status': true, 'bindings': {}}), 200);
       }),
     );
-    expect(await api.devices('13800138000'), isEmpty);
+    api.token = 'session-token';
+    expect(await api.devices(), isEmpty);
     expect((await api.history('device')).items, isEmpty);
     expect(await api.sharedPhones('device'), isEmpty);
     expect(await api.bindStatus('device'), isEmpty);

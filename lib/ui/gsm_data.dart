@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../app_model.dart';
 import '../gsm.dart';
+import '../models.dart';
 import 'design.dart';
 
 class GsmDataPage extends StatefulWidget {
@@ -71,6 +72,16 @@ class _GsmDataPageState extends State<GsmDataPage> {
         customImage = loaded.extra['custom_image'] ?? '';
         custom = gsmCustomFields(loaded.extra);
         dirty = false;
+        loading = false;
+      });
+    } on AppException catch (error) {
+      if (!mounted) return;
+      if (error.key == 'error.unauthorized') {
+        await widget.app.signOut();
+        return;
+      }
+      setState(() {
+        this.error = gsmErrorText(widget.app.t, error);
         loading = false;
       });
     } catch (error) {

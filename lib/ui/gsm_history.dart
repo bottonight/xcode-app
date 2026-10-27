@@ -38,7 +38,20 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
 
   Future<void> _boot() async {
     setState(() => loading = true);
-    await widget.app.refreshGsmDevices();
+    try {
+      await widget.app.refreshGsmDevices();
+    } on AppException catch (error) {
+      if (!mounted) return;
+      if (error.key == 'error.unauthorized') {
+        await widget.app.signOut();
+        return;
+      }
+      setState(() {
+        this.error = gsmErrorText(widget.app.t, error);
+        loading = false;
+      });
+      return;
+    }
     if (!mounted) return;
     _pickDevice();
     if (device == null) {
@@ -73,6 +86,16 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
         records = result.items;
         total = result.total;
         totalPages = result.totalPages;
+        loading = false;
+      });
+    } on AppException catch (error) {
+      if (!mounted) return;
+      if (error.key == 'error.unauthorized') {
+        await widget.app.signOut();
+        return;
+      }
+      setState(() {
+        this.error = gsmErrorText(widget.app.t, error);
         loading = false;
       });
     } catch (error) {
@@ -130,9 +153,7 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
     );
     if (next == null || next == current.name) return;
     final ok = await app.perform(() async {
-      final account = app.gsmAccount;
-      if (account.isEmpty) throw const AppException('gsm.need_phone');
-      await app.gsmApi.rename(account, current.id, next);
+      await app.gsmApi.rename(current.id, next);
       await app.rememberGsmDevice(GsmDevice(id: current.id, name: next));
     });
     if (ok && mounted) {
@@ -155,11 +176,7 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
       ),
     );
     if (phone == null) return;
-    final ok = await app.perform(() async {
-      final owner = app.session?.phone ?? '';
-      if (!RegExp(r'^1\d{10}$').hasMatch(owner)) throw const AppException('gsm.need_phone');
-      await app.gsmApi.share(current.id, owner, phone);
-    });
+    final ok = await app.perform(() => app.gsmApi.share(current.id, phone));
     if (ok && mounted) _toast(app.t('gsm.shared'));
   }
 
@@ -271,11 +288,7 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
       ),
     );
     if (confirmed != true) return;
-    final ok = await app.perform(() async {
-      final phone = app.session?.phone ?? '';
-      if (!RegExp(r'^1\d{10}$').hasMatch(phone)) throw const AppException('gsm.need_phone');
-      await app.gsmApi.deleteData(current.id, phone, selected.toList());
-    });
+    final ok = await app.perform(() => app.gsmApi.deleteData(current.id, selected.toList()));
     if (!ok || !mounted) return;
     setState(() {
       selecting = false;
