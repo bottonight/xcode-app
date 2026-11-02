@@ -17,6 +17,22 @@ class HomePage extends StatelessWidget {
     HomeRoute.modes => _modes(),
     HomeRoute.workbench => _workbench(context),
   };
+  Future<void> _openGsm(BuildContext context) async {
+    if (app.gsmDevices.isEmpty) {
+      try {
+        await app.refreshGsmDevices();
+      } on AppException catch (error) {
+        if (error.key == 'error.unauthorized') await app.signOut();
+        return;
+      }
+    }
+    if (!context.mounted) return;
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(builder: (_) => GsmHistoryPage(app)),
+    );
+  }
+
   Widget _projects(BuildContext context) => PageBody(
     children: [
       LayoutBuilder(
@@ -31,10 +47,7 @@ class HomePage extends StatelessWidget {
             (
               icon: Icons.scale_outlined,
               title: app.t('project.gsm'),
-              onTap: () => Navigator.push<void>(
-                context,
-                MaterialPageRoute<void>(builder: (_) => GsmHistoryPage(app)),
-              ),
+              onTap: () => _openGsm(context),
             ),
             (icon: Icons.show_chart, title: app.t('project.coming_soon'), onTap: null),
             (icon: Icons.grid_on, title: app.t('project.coming_soon'), onTap: null),

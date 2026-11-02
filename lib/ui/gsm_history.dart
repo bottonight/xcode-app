@@ -28,6 +28,7 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
   String error = '';
   final selected = <String>{};
   final _historyCache = GsmHistoryCache();
+  final _detailCache = GsmDetailCache();
 
   @override
   void initState() {
@@ -38,25 +39,13 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
   }
 
   Future<void> _boot() async {
-    setState(() => loading = true);
-    try {
-      await widget.app.refreshGsmDevices();
-    } on AppException catch (error) {
-      if (!mounted) return;
-      if (error.key == 'error.unauthorized') {
-        await widget.app.signOut();
-        return;
-      }
-      setState(() {
-        this.error = gsmErrorText(widget.app.t, error);
-        loading = false;
-      });
-      return;
-    }
-    if (!mounted) return;
     final previous = device?.id;
     _pickDevice();
-    if (device?.id != previous) _historyCache.clearCache();
+    if (device?.id != previous) {
+      _historyCache.clearCache();
+      _detailCache.clear();
+    }
+    if (!mounted) return;
     if (device == null) {
       setState(() => loading = false);
       return;
@@ -147,6 +136,7 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
     );
     if (picked == null || picked.id == device?.id) return;
     _historyCache.clearCache();
+    _detailCache.clear();
     setState(() {
       device = picked;
       page = 1;
@@ -337,7 +327,8 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
       ),
     );
     if (confirmed != true) return;
-    final ok = await app.perform(() => app.gsmApi.deleteData(current.id, selected.toList()));
+    final removedIds = selected.toList();
+    final ok = await app.perform(() => app.gsmApi.deleteData(current.id, removedIds));
     if (!ok || !mounted) return;
     setState(() {
       selecting = false;
@@ -345,6 +336,7 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
     });
     _toast(app.t('gsm.deleted'));
     _historyCache.clearCache();
+    _detailCache.remove(removedIds);
     await _load(forceRefresh: true);
   }
 
@@ -353,7 +345,7 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
     if (current == null) return;
     final changed = await Navigator.push<bool>(
       context,
-      MaterialPageRoute<bool>(builder: (_) => GsmDataPage(widget.app, item.id)),
+      MaterialPageRoute<bool>(builder: (_) => GsmDataPage(widget.app, item.id, _detailCache)),
     );
     if (changed == true && mounted) {
       _historyCache.clearCache();
@@ -385,6 +377,7 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
       body: RefreshIndicator(
         onRefresh: () async {
           _historyCache.clearCache();
+          _detailCache.clear();
           await _load(forceRefresh: true);
         },
         child: PageBody(

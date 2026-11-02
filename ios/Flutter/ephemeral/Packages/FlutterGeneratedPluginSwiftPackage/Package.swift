@@ -1,24 +1,25 @@
 // swift-tools-version: 5.9
-// Placeholder so Xcode Cloud can resolve this local package before Flutter generates it.
-// ci_post_clone.sh replaces this directory when it runs `flutter build ios --config-only`.
+// The swift-tools-version declares the minimum version of Swift required to build this package.
+//
+// Generated file. Do not edit.
+//
 
 import PackageDescription
 
 let package = Package(
     name: "FlutterGeneratedPluginSwiftPackage",
     platforms: [
-        .iOS("15.0"),
+        .iOS("15.0")
     ],
     products: [
-        .library(
-            name: "FlutterGeneratedPluginSwiftPackage",
-            type: .static,
-            targets: ["FlutterGeneratedPluginSwiftPackage"]
-        ),
+        .library(name: "FlutterGeneratedPluginSwiftPackage", type: .static, targets: ["FlutterGeneratedPluginSwiftPackage"])
+    ],
+    dependencies: [
+        
     ],
     targets: [
         .target(
             name: "FlutterGeneratedPluginSwiftPackage"
-        ),
+        )
     ]
 )

@@ -10,9 +10,10 @@ import '../models.dart';
 import 'design.dart';
 
 class GsmDataPage extends StatefulWidget {
-  const GsmDataPage(this.app, this.dataId, {super.key});
+  const GsmDataPage(this.app, this.dataId, this.detailCache, {super.key});
   final AppModel app;
   final String dataId;
+  final GsmDetailCache detailCache;
   @override
   State<GsmDataPage> createState() => _GsmDataPageState();
 }
@@ -55,7 +56,15 @@ class _GsmDataPageState extends State<GsmDataPage> {
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final cached = widget.detailCache.get(widget.dataId);
+      if (cached != null) {
+        if (!mounted) return;
+        _show(cached);
+        return;
+      }
+    }
     setState(() {
       loading = true;
       error = '';
@@ -63,17 +72,8 @@ class _GsmDataPageState extends State<GsmDataPage> {
     try {
       final loaded = await widget.app.gsmApi.detail(widget.dataId);
       if (!mounted) return;
-      for (final entry in controllers.entries) {
-        entry.value.text = loaded.extra[entry.key] ?? '';
-      }
-      setState(() {
-        detail = loaded;
-        weaving = loaded.extra['织造方式'] ?? '';
-        customImage = loaded.extra['custom_image'] ?? '';
-        custom = gsmCustomFields(loaded.extra);
-        dirty = false;
-        loading = false;
-      });
+      widget.detailCache.set(loaded);
+      _show(loaded);
     } on AppException catch (error) {
       if (!mounted) return;
       if (error.key == 'error.unauthorized') {
@@ -91,6 +91,21 @@ class _GsmDataPageState extends State<GsmDataPage> {
         loading = false;
       });
     }
+  }
+
+  void _show(GsmDetail loaded) {
+    for (final entry in controllers.entries) {
+      entry.value.text = loaded.extra[entry.key] ?? '';
+    }
+    setState(() {
+      detail = loaded;
+      weaving = loaded.extra['织造方式'] ?? '';
+      customImage = loaded.extra['custom_image'] ?? '';
+      custom = gsmCustomFields(loaded.extra);
+      dirty = false;
+      loading = false;
+      error = '';
+    });
   }
 
   void _mark() => setState(() => dirty = true);
@@ -134,15 +149,17 @@ class _GsmDataPageState extends State<GsmDataPage> {
     final extra = _payload();
     final ok = await widget.app.perform(() => widget.app.gsmApi.saveExtra(current.id, extra));
     if (!ok || !mounted) return false;
+    final saved = GsmDetail(
+      id: current.id,
+      time: current.time,
+      gsm: current.gsm,
+      unit: current.unit,
+      image: current.image,
+      extra: extra,
+    );
+    widget.detailCache.set(saved);
     setState(() {
-      detail = GsmDetail(
-        id: current.id,
-        time: current.time,
-        gsm: current.gsm,
-        unit: current.unit,
-        image: current.image,
-        extra: extra,
-      );
+      detail = saved;
       dirty = false;
       changed = true;
       adding = false;

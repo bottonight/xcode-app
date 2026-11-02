@@ -209,6 +209,49 @@ class GsmHistoryCache {
   }
 }
 
+class GsmDetailCacheEntry {
+  const GsmDetailCacheEntry({required this.detail, required this.timestamp});
+  final GsmDetail detail;
+  final DateTime timestamp;
+}
+
+class GsmDetailCache {
+  GsmDetailCache({DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
+  static const cacheExpireTime = Duration(minutes: 5);
+  final DateTime Function() _clock;
+  final detailCache = <String, GsmDetailCacheEntry>{};
+
+  GsmDetail? get(String id) {
+    final entry = detailCache[id];
+    if (entry == null) return null;
+    if (_clock().difference(entry.timestamp) >= cacheExpireTime) return null;
+    return entry.detail;
+  }
+
+  void set(GsmDetail detail) {
+    if (detail.id.isEmpty) return;
+    detailCache[detail.id] = GsmDetailCacheEntry(
+      detail: GsmDetail(
+        id: detail.id,
+        time: detail.time,
+        gsm: detail.gsm,
+        unit: detail.unit,
+        image: detail.image,
+        extra: Map<String, String>.unmodifiable(detail.extra),
+      ),
+      timestamp: _clock(),
+    );
+  }
+
+  void remove(Iterable<String> ids) {
+    for (final id in ids) {
+      detailCache.remove(id);
+    }
+  }
+
+  void clear() => detailCache.clear();
+}
+
 class GsmHardwareInfo {
   const GsmHardwareInfo({
     required this.deviceId,

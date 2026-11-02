@@ -105,6 +105,37 @@ void main() {
     expect(cache.favoriteCache, isEmpty);
   });
 
+  test('detail records expire on their own and a save refreshes only that record', () {
+    GsmDetail detail(String id, String name) => GsmDetail(
+      id: id,
+      time: '10-08 17:05',
+      gsm: '180',
+      unit: 'g/m²',
+      image: '',
+      extra: {'品名': name},
+    );
+    var now = DateTime(2026, 11, 2, 12);
+    final cache = GsmDetailCache(clock: () => now);
+    cache.set(detail('7', '斜纹'));
+    cache.set(detail('8', '平纹'));
+    expect(cache.get('7')?.extra['品名'], '斜纹');
+
+    now = now.add(const Duration(minutes: 4));
+    cache.set(detail('7', '新斜纹'));
+    expect(cache.get('7')?.extra['品名'], '新斜纹');
+    expect(cache.get('8')?.extra['品名'], '平纹');
+
+    now = now.add(const Duration(minutes: 4));
+    expect(cache.get('7')?.extra['品名'], '新斜纹');
+    expect(cache.get('8'), isNull);
+
+    cache.remove(['7']);
+    expect(cache.get('7'), isNull);
+    cache.set(detail('9', '针织'));
+    cache.clear();
+    expect(cache.detailCache, isEmpty);
+  });
+
   test('Empty GSM collections arrive as objects', () async {
     final api = GsmApi(
       client: MockClient((request) async {
