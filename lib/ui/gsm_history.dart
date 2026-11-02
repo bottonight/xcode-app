@@ -27,6 +27,7 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
   int totalPages = 0;
   String error = '';
   final selected = <String>{};
+  final _historyCache = GsmHistoryCache();
 
   @override
   void initState() {
@@ -53,7 +54,9 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
       return;
     }
     if (!mounted) return;
+    final previous = device?.id;
     _pickDevice();
+    if (device?.id != previous) _historyCache.clearCache();
     if (device == null) {
       setState(() => loading = false);
       return;
@@ -71,17 +74,32 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
     device = devices.firstWhere((item) => item.id == wanted, orElse: () => devices.first);
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool forceRefresh = false}) async {
     final current = device;
     if (current == null) return;
+    await widget.app.selectGsmDevice(current.id);
+    if (!mounted || device?.id != current.id) return;
+    if (!forceRefresh && _historyCache.isCacheValid()) {
+      final cached = _historyCache.getCacheData(favorites, page);
+      if (cached != null) {
+        setState(() {
+          records = cached.data;
+          total = cached.total;
+          totalPages = cached.totalPages;
+          loading = false;
+          error = '';
+        });
+        return;
+      }
+    }
     setState(() {
       loading = true;
       error = '';
     });
-    await widget.app.selectGsmDevice(current.id);
     try {
       final result = await widget.app.gsmApi.history(current.id, page: page, favorite: favorites);
       if (!mounted || device?.id != current.id) return;
+      _historyCache.setCacheData(favorites, page, result.items, result.total, result.totalPages);
       setState(() {
         records = result.items;
         total = result.total;
@@ -128,13 +146,14 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
       ),
     );
     if (picked == null || picked.id == device?.id) return;
+    _historyCache.clearCache();
     setState(() {
       device = picked;
       page = 1;
       selecting = false;
       selected.clear();
     });
-    await _load();
+    await _load(forceRefresh: true);
   }
 
   Future<void> _rename() async {
@@ -193,49 +212,74 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: ListenableBuilder(
-          listenable: app,
-          builder: (context, _) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Heading(app.t('gsm.shared_users')),
-              ),
-              if (phones.isEmpty)
+        child: SizedBox(
+          width: MediaQuery.sizeOf(context).width,
+          child: ListenableBuilder(
+            listenable: app,
+            builder: (context, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(app.t('gsm.shared_empty'), style: const TextStyle(color: muted)),
-                )
-              else
-                Flexible(
-                  child: ListView(
-                    shrinkWrap: true,
-                    children: [
-                      for (final phone in phones)
-                        ListTile(
-                          title: Text(phone),
-                          trailing: TextButton(
-                            onPressed: () async {
-                              final removed = await app.perform(
-                                () => app.gsmApi.cancelShare(current.id, phone),
-                              );
-                              if (removed && context.mounted) {
-                                setState(() => phones = [...phones]..remove(phone));
-                                Navigator.pop(context);
-                                _toast(app.t('gsm.unshared'));
-                              }
-                            },
-                            child: Text(
-                              app.t('gsm.unshare'),
-                              style: const TextStyle(color: Colors.red),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Heading(app.t('gsm.shared_users')),
+                ),
+                if (phones.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(app.t('gsm.shared_empty'), style: const TextStyle(color: muted)),
+                  )
+                else
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final phone in phones)
+                          ListTile(
+                            title: Text(phone),
+                            trailing: TextButton(
+                              onPressed: () async {
+                                final confirmed = await showDialog<bool>(
+                                  context: context,
+                                  builder: (dialogContext) => AlertDialog(
+                                    title: Text(app.t('share.revoke_title')),
+                                    content: Text(app.t('share.revoke_confirm', phone)),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(dialogContext, false),
+                                        child: Text(app.t('common.cancel')),
+                                      ),
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(dialogContext, true),
+                                        child: Text(
+                                          app.t('share.revoke'),
+                                          style: const TextStyle(color: Colors.red),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirmed != true || !context.mounted) return;
+                                final removed = await app.perform(
+                                  () => app.gsmApi.cancelShare(current.id, phone),
+                                );
+                                if (removed && context.mounted) {
+                                  setState(() => phones = [...phones]..remove(phone));
+                                  Navigator.pop(context);
+                                  _toast(app.t('gsm.unshared'));
+                                }
+                              },
+                              child: Text(
+                                app.t('gsm.unshare'),
+                                style: const TextStyle(color: Colors.red),
+                              ),
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -245,11 +289,16 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
   Future<void> _toggleFavorite(GsmRecord item) async {
     final current = device;
     if (current == null) return;
+    final index = records.indexWhere((record) => record.id == item.id);
     final next = !item.favorite;
     final ok = await widget.app.perform(
       () => widget.app.gsmApi.setFavorite(current.id, item.id, favorite: next),
     );
     if (!ok || !mounted) return;
+    _historyCache.updateCacheFavoriteStatus(page, index, next);
+    if (favorites) {
+      _historyCache.updateCacheFavoriteStatus(page, index, next, favoritePage: true);
+    }
     setState(() {
       if (favorites && !next) {
         records = records.where((record) => record.id != item.id).toList();
@@ -295,7 +344,8 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
       selected.clear();
     });
     _toast(app.t('gsm.deleted'));
-    await _load();
+    _historyCache.clearCache();
+    await _load(forceRefresh: true);
   }
 
   Future<void> _open(GsmRecord item) async {
@@ -305,7 +355,10 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
       context,
       MaterialPageRoute<bool>(builder: (_) => GsmDataPage(widget.app, item.id)),
     );
-    if (changed == true && mounted) await _load();
+    if (changed == true && mounted) {
+      _historyCache.clearCache();
+      await _load(forceRefresh: true);
+    }
   }
 
   Future<void> _scan() async {
@@ -330,7 +383,10 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
     return Scaffold(
       appBar: AppBar(title: Text(app.t('project.gsm'))),
       body: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh: () async {
+          _historyCache.clearCache();
+          await _load(forceRefresh: true);
+        },
         child: PageBody(
           children: [
             if (loading && current == null)
@@ -371,15 +427,23 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
                       style: const TextStyle(color: muted, fontSize: 12),
                     ),
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
+                    Row(
                       children: [
-                        TextButton.icon(
-                          onPressed: _share,
-                          icon: const Icon(Icons.share_outlined, size: 18),
-                          label: Text(app.t('gsm.share')),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _share,
+                            icon: const Icon(Icons.share_outlined, size: 18),
+                            label: Text(app.t('gsm.share')),
+                          ),
                         ),
-                        TextButton(onPressed: _sharedUsers, child: Text(app.t('gsm.shared_users'))),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _sharedUsers,
+                            icon: const Icon(Icons.person_outline, size: 18),
+                            label: Text(app.t('gsm.shared_users')),
+                          ),
+                        ),
                       ],
                     ),
                   ],

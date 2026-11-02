@@ -146,6 +146,69 @@ class GsmPage {
   int get totalPages => total == 0 ? 0 : (total / pageSize).ceil();
 }
 
+class GsmHistoryCachePage {
+  const GsmHistoryCachePage({
+    required this.data,
+    required this.total,
+    required this.totalPages,
+    required this.timestamp,
+  });
+  final List<GsmRecord> data;
+  final int total, totalPages;
+  final DateTime timestamp;
+}
+
+class GsmHistoryCache {
+  GsmHistoryCache({DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
+  static const cacheExpireTime = Duration(minutes: 5);
+  final DateTime Function() _clock;
+  final historyCache = <int, GsmHistoryCachePage>{};
+  final favoriteCache = <int, GsmHistoryCachePage>{};
+  DateTime? cacheTimestamp;
+
+  bool isCacheValid() {
+    final written = cacheTimestamp;
+    if (written == null) return false;
+    return _clock().difference(written) < cacheExpireTime;
+  }
+
+  GsmHistoryCachePage? getCacheData(bool favorite, int page) =>
+      (favorite ? favoriteCache : historyCache)[page];
+
+  void setCacheData(bool favorite, int page, List<GsmRecord> data, int total, int totalPages) {
+    final now = _clock();
+    final cache = favorite ? favoriteCache : historyCache;
+    cache[page] = GsmHistoryCachePage(
+      data: List<GsmRecord>.unmodifiable(data),
+      total: total,
+      totalPages: totalPages,
+      timestamp: now,
+    );
+    cacheTimestamp = now;
+  }
+
+  void updateCacheFavoriteStatus(int page, int index, bool favorite, {bool favoritePage = false}) {
+    final cache = favoritePage ? favoriteCache : historyCache;
+    final entry = cache[page];
+    if (entry == null || index < 0 || index >= entry.data.length) return;
+    cache[page] = GsmHistoryCachePage(
+      data: [
+        for (var i = 0; i < entry.data.length; i++)
+          if (i == index) entry.data[i].copyWith(favorite: favorite) else entry.data[i],
+      ],
+      total: entry.total,
+      totalPages: entry.totalPages,
+      timestamp: entry.timestamp,
+    );
+  }
+
+  void clearCache() {
+    historyCache.clear();
+    favoriteCache.clear();
+    cacheTimestamp = null;
+  }
+}
+
 class GsmHardwareInfo {
   const GsmHardwareInfo({
     required this.deviceId,

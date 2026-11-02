@@ -84,6 +84,7 @@ class AppModel extends ChangeNotifier {
   List<ManagedDevice> managedDevices = [];
   List<GsmDevice> gsmDevices = [];
   String? lastGsmDeviceId;
+  String? _devicesFetchedFor;
   String get gsmAccount {
     final current = session;
     if (current == null) return '';
@@ -264,6 +265,7 @@ class AppModel extends ChangeNotifier {
     managedDevices = [];
     gsmDevices = [];
     lastGsmDeviceId = null;
+    _devicesFetchedFor = null;
     _clearDevice();
     route = HomeRoute.projects;
     await bluetooth.stopScan();
@@ -376,6 +378,7 @@ class AppModel extends ChangeNotifier {
     }
     pendingBinding = false;
     _enterModes(available);
+    await syncDevicesAfterBind();
   });
   Future<void> cancelBinding() async {
     pendingBinding = false;
@@ -483,10 +486,38 @@ class AppModel extends ChangeNotifier {
     clearMeasurements();
     message = t('notice.cal_ok');
   }, title: 'busy.scanning');
-  Future<bool> loadDevices() => perform(() async {
-    managedDevices = await api.devices(session!);
+  Future<void> showDevices() async {
+    final account = gsmAccount;
+    if (session != null && account.isNotEmpty && _devicesFetchedFor == account) {
+      notifyListeners();
+      return;
+    }
+    await loadDevices();
+  }
+
+  Future<bool> loadDevices() => perform(_fetchDevices);
+
+  Future<void> syncDevicesAfterBind() async {
+    try {
+      await _fetchDevices();
+      notifyListeners();
+    } on AppException catch (error) {
+      if (error.key == 'error.unauthorized') rethrow;
+    } catch (_) {}
+  }
+
+  Future<void> _fetchDevices() async {
+    final current = session;
+    if (current == null) return;
+    await _prefs();
+    managedDevices = await api.devices(current);
     await refreshGsmDevices();
-  });
+    final account = gsmAccount;
+    if (account.isNotEmpty) _devicesFetchedFor = account;
+  }
+
+  Future<SharedPreferences> _prefs() async =>
+      _preferences ??= await SharedPreferences.getInstance();
 
   Future<void> refreshGsmDevices() async {
     final account = gsmAccount;

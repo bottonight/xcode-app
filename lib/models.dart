@@ -150,10 +150,11 @@ class AnalysisMode {
     j['name_en'] as String?,
     intValue(j['use_count_month']),
   );
-  static List<AnalysisMode> parse(dynamic list) => jsonList(list)
-      .map((e) => AnalysisMode.fromJson(Map<String, dynamic>.from(e as Map)))
-      .where((m) => m.id != 'LINE' && m.id != 'REPORT')
-      .toList();
+  static List<AnalysisMode> parse(dynamic list) =>
+      jsonList(list)
+          .map((e) => AnalysisMode.fromJson(Map<String, dynamic>.from(e as Map)))
+          .where((m) => m.id != 'LINE' && m.id != 'REPORT')
+          .toList();
 }
 
 class ManagedDevice {

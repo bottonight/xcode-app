@@ -19,7 +19,7 @@ class DevicesPage extends StatelessWidget {
     if (!context.mounted) return;
     await Navigator.push<void>(context, MaterialPageRoute<void>(builder: (_) => GsmScanPage(app)));
     if (!context.mounted) return;
-    await app.loadDevices();
+    await app.showDevices();
   }
 
   @override

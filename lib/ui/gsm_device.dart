@@ -263,6 +263,7 @@ class _GsmDevicePageState extends State<GsmDevicePage> {
       if (info == null) throw const AppException('gsm.need_phone');
       await app.gsmApi.bind(info.deviceId);
       await app.rememberGsmDevice(GsmDevice(id: info.deviceId, name: _name));
+      await app.syncDevicesAfterBind();
     }, title: 'gsm.binding');
     if (!ok || !mounted) return;
     setState(() {

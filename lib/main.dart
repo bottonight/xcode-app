@@ -196,7 +196,7 @@ class _MainShellState extends State<MainShell> {
             if (app.busy || tab == index) return;
             setState(() => tab = index);
             if (index != 0) await app.bluetooth.stopScan();
-            if (index == 1) await app.loadDevices();
+            if (index == 1) await app.showDevices();
           },
           items: [
             BottomNavigationBarItem(

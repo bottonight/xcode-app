@@ -68,6 +68,43 @@ void main() {
     expect(merged.map((device) => '${device.id}:${device.name}'), ['a:新', 'b:本地']);
   });
 
+  test('history pages stay cached for five minutes and renew together', () {
+    final record = GsmRecord(
+      id: '7',
+      time: '10-08 17:05',
+      gsm: '180',
+      unit: 'g/m²',
+      image: '',
+      favorite: false,
+      product: '斜纹',
+    );
+    var now = DateTime(2026, 11, 2, 12);
+    final cache = GsmHistoryCache(clock: () => now);
+    cache.setCacheData(false, 3, [record], 21, 3);
+    expect(cache.getCacheData(false, 3)?.data.single.id, '7');
+    expect(cache.getCacheData(false, 1), isNull);
+    expect(cache.getCacheData(true, 3), isNull);
+
+    now = now.add(const Duration(minutes: 4));
+    cache.setCacheData(true, 1, [record.copyWith(favorite: true)], 1, 1);
+    expect(cache.isCacheValid(), isTrue);
+    expect(cache.getCacheData(false, 3), isNotNull);
+
+    cache.updateCacheFavoriteStatus(3, 0, true);
+    expect(cache.getCacheData(false, 3)?.data.single.favorite, isTrue);
+    expect(cache.getCacheData(true, 1)?.data.single.favorite, isTrue);
+    cache.updateCacheFavoriteStatus(1, 0, false, favoritePage: true);
+    expect(cache.getCacheData(true, 1)?.data.single.favorite, isFalse);
+
+    now = now.add(const Duration(minutes: 5));
+    expect(cache.isCacheValid(), isFalse);
+
+    cache.clearCache();
+    expect(cache.cacheTimestamp, isNull);
+    expect(cache.historyCache, isEmpty);
+    expect(cache.favoriteCache, isEmpty);
+  });
+
   test('Empty GSM collections arrive as objects', () async {
     final api = GsmApi(
       client: MockClient((request) async {

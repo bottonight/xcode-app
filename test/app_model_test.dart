@@ -4,10 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fabriclab/app_model.dart';
+import 'package:fabriclab/gsm.dart';
 import 'package:fabriclab/models.dart';
 import 'package:fabriclab/services/api.dart';
 import 'package:fabriclab/services/bluetooth.dart';
+import 'package:fabriclab/services/gsm_api.dart';
 import 'package:fabriclab/ui/design.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class TestBluetooth extends FabricBluetooth {
   bool ready = true;
@@ -26,6 +29,24 @@ class TestBluetooth extends FabricBluetooth {
   Future<int> readBattery() async {
     batteryReads++;
     return batteryValue;
+  }
+}
+
+class _CountingDevicesApi extends FabricApi {
+  int deviceLoads = 0;
+  @override
+  Future<List<ManagedDevice>> devices(UserSession session) async {
+    deviceLoads++;
+    return [ManagedDevice('sn', '成分$deviceLoads', deviceLoads, const {}, true)];
+  }
+}
+
+class _CountingGsmApi extends GsmApi {
+  int deviceLoads = 0;
+  @override
+  Future<List<GsmDevice>> devices() async {
+    deviceLoads++;
+    return [GsmDevice(id: 'g1', name: '克重$deviceLoads')];
   }
 }
 
@@ -150,6 +171,49 @@ void main() {
     expect(isChineseLanguage(const Locale('en', 'CN')), isFalse);
     expect(isChineseLanguage(const Locale('ja')), isFalse);
   });
+  test('Device page requests both lists only on the first visit and after binding', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
+    final api = _CountingDevicesApi();
+    final gsm = _CountingGsmApi();
+    final app = AppModel(api: api, bluetooth: TestBluetooth(), gsmApi: gsm)
+      ..session = const UserSession(
+        userId: '1',
+        phone: '13800138000',
+        email: '',
+        username: 'Test',
+        token: 't',
+        adminLevel: 0,
+      );
+
+    await app.showDevices();
+    expect(api.deviceLoads, 1);
+    expect(gsm.deviceLoads, 1);
+    expect(app.managedDevices.single.name, '成分1');
+    expect(app.gsmDevices.single.name, '克重1');
+
+    await app.showDevices();
+    expect(api.deviceLoads, 1);
+    expect(gsm.deviceLoads, 1);
+
+    await app.syncDevicesAfterBind();
+    expect(api.deviceLoads, 2);
+    expect(gsm.deviceLoads, 2);
+    expect(app.managedDevices.single.name, '成分2');
+    expect(app.gsmDevices.single.name, '克重2');
+
+    final reopenedApi = _CountingDevicesApi();
+    final reopenedGsm = _CountingGsmApi();
+    final reopened = AppModel(api: reopenedApi, bluetooth: TestBluetooth(), gsmApi: reopenedGsm)
+      ..session = app.session;
+    await reopened.showDevices();
+    expect(reopenedApi.deviceLoads, 1);
+    expect(reopenedGsm.deviceLoads, 1);
+    await reopened.showDevices();
+    expect(reopenedApi.deviceLoads, 1);
+    expect(reopenedGsm.deviceLoads, 1);
+  });
+
   test('Battery color is green at 50+, yellow from 20, red below 20', () {
     expect(AppModel.batteryPollInterval, const Duration(minutes: 2));
     expect(batteryColor(100), batteryHigh);
