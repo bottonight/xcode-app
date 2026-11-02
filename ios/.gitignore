@@ -20,7 +20,13 @@ Flutter/Flutter.framework
 Flutter/Flutter.podspec
 Flutter/.last_build_id
 Flutter/Generated.xcconfig
-Flutter/ephemeral/
+# Flutter regenerates ephemeral/. The plugin package placeholder is tracked so
+# Xcode Cloud can resolve it before ci_post_clone.sh overwrites the real package.
+Flutter/ephemeral/*
+!Flutter/ephemeral/Packages/
+Flutter/ephemeral/Packages/*
+!Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/
+!Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/**
 Flutter/app.flx
 Flutter/app.zip
 Flutter/flutter_assets/

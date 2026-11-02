@@ -60,6 +60,9 @@ pod install
 cd ..
 
 echo "=== flutter build ios --config-only ==="
+# Xcode Cloud resolves Swift packages before this script. The committed
+# placeholder at ios/Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage
+# lets that resolve succeed; this command replaces it with the real plugin package.
 CONFIG_ARGS="--config-only --release --no-codesign"
 if [ -n "${CI_BUILD_NUMBER:-}" ]; then
   echo "using Xcode Cloud build number ${CI_BUILD_NUMBER}"
