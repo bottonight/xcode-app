@@ -8,7 +8,7 @@ import 'models.dart';
 import 'ui/auth.dart';
 import 'ui/design.dart';
 import 'ui/devices.dart';
-import 'ui/gsm_scan.dart';
+import 'ui/gsm_history.dart';
 import 'ui/home.dart';
 
 void main() {
@@ -152,9 +152,7 @@ class _MainShellState extends State<MainShell> {
     if (app.area == AppArea.root) {
       return rootTab == 1 ? app.t('account.title') : app.t('project.home');
     }
-    if (app.area == AppArea.gsm) {
-      return app.t(app.areaTab == 0 ? 'tab.gsm_data' : 'tab.gsm_connect');
-    }
+    if (app.area == AppArea.gsm) return app.t('gsm.history_title');
     if (app.areaTab == 1) return app.t('tab.composition_devices');
     return switch (app.route) {
       HomeRoute.modes => app.t('mode.title'),
@@ -195,24 +193,12 @@ class _MainShellState extends State<MainShell> {
     if (app.area == AppArea.composition && index == 0 && app.route == HomeRoute.discovery) {
       await app.perform(app.bluetooth.startScan);
     }
-    if (app.area == AppArea.gsm && index == 0) {
-      try {
-        await app.refreshGsmDevices();
-        app.notifyListeners();
-      } on AppException catch (error) {
-        if (error.key == 'error.unauthorized') await app.signOut();
-      }
-    }
   }
 
   Widget _body(AppModel app) => switch (app.area) {
     AppArea.root => rootTab == 0 ? HomePage(app) : AccountPage(app),
-    AppArea.composition => app.areaTab == 0
-        ? HomePage(app, flow: true)
-        : DevicesPage(app, kind: DeviceListKind.composition),
-    AppArea.gsm => app.areaTab == 0
-        ? DevicesPage(app, kind: DeviceListKind.gsm)
-        : GsmScanPage(app, embedded: true),
+    AppArea.composition => app.areaTab == 0 ? HomePage(app, flow: true) : DevicesPage(app),
+    AppArea.gsm => GsmHistoryPage(app),
   };
 
   List<BottomNavigationBarItem> _items(AppModel app) => switch (app.area) {
@@ -230,19 +216,14 @@ class _MainShellState extends State<MainShell> {
         label: app.t('tab.composition_devices'),
       ),
     ],
-    AppArea.gsm => [
-      BottomNavigationBarItem(icon: const Icon(Icons.list_alt), label: app.t('tab.gsm_data')),
-      BottomNavigationBarItem(
-        icon: const Icon(Icons.bluetooth_searching),
-        label: app.t('tab.gsm_connect'),
-      ),
-    ],
+    AppArea.gsm => const [],
   };
 
   @override
   Widget build(BuildContext context) {
     final app = widget.app;
     final inside = app.area != AppArea.root;
+    final gsm = app.area == AppArea.gsm;
     final current = inside ? app.areaTab : rootTab;
     return PopScope(
       canPop: !inside && !app.busy,
@@ -250,26 +231,30 @@ class _MainShellState extends State<MainShell> {
         if (!didPop && inside && !app.busy) unawaited(_back(app));
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(_title(app)),
-          leading: inside
-              ? IconButton(
-                  tooltip: app.t('common.back'),
-                  onPressed: app.busy ? null : () => _back(app),
-                  icon: const Icon(Icons.chevron_left, color: indigo),
-                )
-              : null,
-        ),
+        appBar: gsm
+            ? null
+            : AppBar(
+                title: Text(_title(app)),
+                leading: inside
+                    ? IconButton(
+                        tooltip: app.t('common.back'),
+                        onPressed: app.busy ? null : () => _back(app),
+                        icon: const Icon(Icons.chevron_left, color: indigo),
+                      )
+                    : null,
+              ),
         body: SafeArea(top: false, child: _body(app)),
-        bottomNavigationBar: BottomNavigationBar(
-          elevation: 0,
-          currentIndex: current,
-          selectedItemColor: indigo,
-          unselectedItemColor: muted,
-          backgroundColor: Colors.white,
-          onTap: (index) => _select(app, index),
-          items: _items(app),
-        ),
+        bottomNavigationBar: gsm
+            ? null
+            : BottomNavigationBar(
+                elevation: 0,
+                currentIndex: current,
+                selectedItemColor: indigo,
+                unselectedItemColor: muted,
+                backgroundColor: Colors.white,
+                onTap: (index) => _select(app, index),
+                items: _items(app),
+              ),
       ),
     );
   }

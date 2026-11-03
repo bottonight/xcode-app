@@ -3,55 +3,33 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../app_model.dart';
-import '../gsm.dart';
 import '../models.dart';
 import 'design.dart';
 import 'fabrics.dart';
-import 'gsm_history.dart';
-
-enum DeviceListKind { composition, gsm }
 
 class DevicesPage extends StatelessWidget {
-  const DevicesPage(this.app, {required this.kind, super.key});
+  const DevicesPage(this.app, {super.key});
   final AppModel app;
-  final DeviceListKind kind;
-
-  Future<void> _reload() async {
-    if (kind == DeviceListKind.gsm) {
-      try {
-        await app.refreshGsmDevices();
-        app.notifyListeners();
-      } on AppException catch (error) {
-        if (error.key == 'error.unauthorized') await app.signOut();
-      }
-      return;
-    }
-    await app.loadDevices();
-  }
 
   @override
   Widget build(BuildContext context) {
-    final composition = kind == DeviceListKind.composition;
-    final empty = composition ? app.managedDevices.isEmpty : app.gsmDevices.isEmpty;
+    final devices = app.managedDevices;
     return RefreshIndicator(
-      onRefresh: _reload,
+      onRefresh: app.loadDevices,
       child: PageBody(
         children: [
-          if (empty)
+          if (devices.isEmpty)
             EmptyPanel(
-              icon: composition ? Icons.sensors : Icons.scale_outlined,
-              title: app.t(composition ? 'devices.empty' : 'gsm.no_device'),
-              subtitle: app.t(composition ? 'devices.empty_hint' : 'gsm.no_device_hint'),
+              icon: Icons.sensors,
+              title: app.t('devices.empty'),
+              subtitle: app.t('devices.empty_hint'),
               action: OutlinedButton.icon(
-                onPressed: _reload,
+                onPressed: app.loadDevices,
                 icon: const Icon(Icons.refresh),
                 label: Text(app.t('discovery.rescan')),
               ),
             ),
-          if (composition)
-            for (final device in app.managedDevices) _compositionCard(context, device),
-          if (!composition)
-            for (final device in app.gsmDevices) _gsmCard(context, device),
+          for (final device in devices) _compositionCard(context, device),
         ],
       ),
     );
@@ -75,23 +53,6 @@ class DevicesPage extends StatelessWidget {
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute<void>(builder: (_) => DeviceDetailPage(app, device)),
-      ),
-    ),
-  );
-
-  Widget _gsmCard(BuildContext context, GsmDevice device) => BrandCard(
-    padding: EdgeInsets.zero,
-    child: ListTile(
-      contentPadding: const EdgeInsets.all(16),
-      title: Text(
-        device.label(app.t('gsm.unknown_device')),
-        style: const TextStyle(fontWeight: FontWeight.w600),
-      ),
-      subtitle: Padding(padding: const EdgeInsets.only(top: 6), child: Text(device.id)),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute<void>(builder: (_) => GsmHistoryPage(app, initialDeviceId: device.id)),
       ),
     ),
   );

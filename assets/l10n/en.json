@@ -297,6 +297,7 @@
   "gsm.field_required": "Label and value are required",
   "gsm.field_reserved": "That label is already in common details",
   "gsm.unsaved": "You have unsaved changes. Leave anyway?",
+  "gsm.scan_nearby": "Scan nearby devices",
   "gsm.scan_title": "Scan devices",
   "gsm.scan_found": "Devices found",
   "gsm.scan_empty": "No devices yet",

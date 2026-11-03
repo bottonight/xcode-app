@@ -373,7 +373,17 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
     final current = device;
     final name = current?.label(app.t('gsm.unknown_device')) ?? app.t('gsm.unknown_device');
     return Scaffold(
-      appBar: AppBar(title: Text(app.t('project.gsm'))),
+      appBar: AppBar(
+        title: Text(app.t('gsm.history_title')),
+        leading: IconButton(
+          tooltip: app.t('common.back'),
+          onPressed: app.busy ? null : app.exitToHome,
+          icon: const Icon(Icons.chevron_left, color: indigo),
+        ),
+        actions: [
+          TextButton(onPressed: app.busy ? null : _scan, child: Text(app.t('gsm.scan_nearby'))),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           _historyCache.clearCache();

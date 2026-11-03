@@ -571,6 +571,11 @@ class AppModel extends ChangeNotifier {
     final cached = _readGsmCache(account);
     try {
       gsmDevices = await gsmApi.devices();
+      final last = lastGsmDeviceId;
+      if (last != null && last.isNotEmpty && gsmDevices.every((device) => device.id != last)) {
+        lastGsmDeviceId = null;
+        await _preferences?.remove('gsm-last-$account');
+      }
       await _writeGsmCache(account);
     } on AppException catch (error) {
       if (error.key == 'error.unauthorized') rethrow;

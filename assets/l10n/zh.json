@@ -297,6 +297,7 @@
   "gsm.field_required": "标签和值不能为空",
   "gsm.field_reserved": "该标签已在常用信息中",
   "gsm.unsaved": "还有未保存的修改，确定离开？",
+  "gsm.scan_nearby": "扫描附近设备",
   "gsm.scan_title": "扫描设备",
   "gsm.scan_found": "已搜索到设备",
   "gsm.scan_empty": "暂无设备",
