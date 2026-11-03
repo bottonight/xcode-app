@@ -190,6 +190,8 @@ class Capture {
 
 enum HomeRoute { projects, discovery, modes, workbench }
 
+enum AppArea { root, composition, gsm }
+
 String formatComponents(dynamic value) {
   if (value == null) return '';
   if (value is String) {

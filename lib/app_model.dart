@@ -76,6 +76,8 @@ class AppModel extends ChangeNotifier {
   DateTime? resultTime;
   UserSession? session;
   HomeRoute route = HomeRoute.projects;
+  AppArea area = AppArea.root;
+  int areaTab = 0;
   NearbyDevice? selectedDevice;
   DeviceIdentity? identity;
   AnalysisMode? mode;
@@ -268,6 +270,8 @@ class AppModel extends ChangeNotifier {
     _devicesFetchedFor = null;
     _clearDevice();
     route = HomeRoute.projects;
+    area = AppArea.root;
+    areaTab = 0;
     await bluetooth.stopScan();
     await bluetooth.disconnect();
     await _secure.delete(key: 'user-session');
@@ -318,6 +322,42 @@ class AppModel extends ChangeNotifier {
       batteryPercent = value;
       notifyListeners();
     } catch (_) {}
+  }
+
+  Future<void> openComposition() async {
+    area = AppArea.composition;
+    areaTab = 0;
+    notifyListeners();
+    await discover();
+  }
+
+  Future<void> openGsm() async {
+    area = AppArea.gsm;
+    areaTab = 0;
+    notifyListeners();
+    try {
+      await refreshGsmDevices();
+      notifyListeners();
+    } on AppException catch (error) {
+      if (error.key == 'error.unauthorized') await signOut();
+    }
+  }
+
+  void selectAreaTab(int index) {
+    if (areaTab == index) return;
+    areaTab = index;
+    notifyListeners();
+  }
+
+  Future<void> exitToHome() async {
+    if (busy) return;
+    await bluetooth.stopScan();
+    await bluetooth.disconnect();
+    _clearDevice();
+    route = HomeRoute.projects;
+    area = AppArea.root;
+    areaTab = 0;
+    notifyListeners();
   }
 
   Future<void> discover() async {
@@ -526,17 +566,18 @@ class AppModel extends ChangeNotifier {
       lastGsmDeviceId = null;
       return;
     }
+    await _prefs();
     lastGsmDeviceId = _preferences?.getString('gsm-last-$account');
     final cached = _readGsmCache(account);
     try {
-      gsmDevices = mergeGsmDevices(cached, await gsmApi.devices());
+      gsmDevices = await gsmApi.devices();
+      await _writeGsmCache(account);
     } on AppException catch (error) {
       if (error.key == 'error.unauthorized') rethrow;
       gsmDevices = cached;
     } catch (_) {
       gsmDevices = cached;
     }
-    await _writeGsmCache(account);
   }
 
   Future<void> selectGsmDevice(String id) async {

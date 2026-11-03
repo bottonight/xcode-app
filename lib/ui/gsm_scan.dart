@@ -10,8 +10,9 @@ import 'design.dart';
 import 'gsm_device.dart';
 
 class GsmScanPage extends StatefulWidget {
-  const GsmScanPage(this.app, {super.key});
+  const GsmScanPage(this.app, {this.embedded = false, super.key});
   final AppModel app;
+  final bool embedded;
   @override
   State<GsmScanPage> createState() => _GsmScanPageState();
 }
@@ -72,9 +73,7 @@ class _GsmScanPageState extends State<GsmScanPage> {
   Widget build(BuildContext context) {
     final app = widget.app;
     final ready = ble.adapter == BluetoothAdapterState.on;
-    return Scaffold(
-      appBar: AppBar(title: Text(app.t('gsm.scan_title'))),
-      body: PageBody(
+    final body = PageBody(
         children: [
           Row(
             children: [
@@ -140,7 +139,8 @@ class _GsmScanPageState extends State<GsmScanPage> {
             child: Text(app.t(ble.scanning ? 'gsm.scanning_button' : 'gsm.scan')),
           ),
         ],
-      ),
-    );
+      );
+    if (widget.embedded) return body;
+    return Scaffold(appBar: AppBar(title: Text(app.t('gsm.scan_title'))), body: body);
   }
 }

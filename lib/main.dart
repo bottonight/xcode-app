@@ -8,6 +8,7 @@ import 'models.dart';
 import 'ui/auth.dart';
 import 'ui/design.dart';
 import 'ui/devices.dart';
+import 'ui/gsm_scan.dart';
 import 'ui/home.dart';
 
 void main() {
@@ -145,70 +146,129 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
-  int tab = 0;
-  String get title {
-    final app = widget.app;
-    if (tab == 1) return app.t('devices.title');
-    if (tab == 2) return app.t('account.title');
+  int rootTab = 0;
+
+  String _title(AppModel app) {
+    if (app.area == AppArea.root) {
+      return rootTab == 1 ? app.t('account.title') : app.t('project.home');
+    }
+    if (app.area == AppArea.gsm) {
+      return app.t(app.areaTab == 0 ? 'tab.gsm_data' : 'tab.gsm_connect');
+    }
+    if (app.areaTab == 1) return app.t('tab.composition_devices');
     return switch (app.route) {
-      HomeRoute.projects => app.t('project.home'),
-      HomeRoute.discovery => app.t('discovery.title'),
       HomeRoute.modes => app.t('mode.title'),
       HomeRoute.workbench => app.mode?.title(app.english) ?? app.t('workbench.inspect'),
+      _ => app.t('discovery.title'),
     };
   }
+
+  bool _stepsBack(AppModel app) =>
+      app.area == AppArea.composition &&
+      app.areaTab == 0 &&
+      app.route != HomeRoute.discovery &&
+      app.route != HomeRoute.projects;
+
+  Future<void> _back(AppModel app) async {
+    if (app.busy) return;
+    if (_stepsBack(app)) {
+      await app.back();
+      return;
+    }
+    await app.exitToHome();
+  }
+
+  Future<void> _select(AppModel app, int index) async {
+    if (app.busy) return;
+    if (app.area == AppArea.root) {
+      if (rootTab == index) return;
+      setState(() => rootTab = index);
+      if (index != 0) await app.bluetooth.stopScan();
+      return;
+    }
+    if (app.areaTab == index) return;
+    final leavingDiscovery =
+        app.area == AppArea.composition && app.areaTab == 0 && app.route == HomeRoute.discovery;
+    app.selectAreaTab(index);
+    if (leavingDiscovery) await app.bluetooth.stopScan();
+    if (app.area == AppArea.composition && index == 1) await app.showDevices();
+    if (app.area == AppArea.composition && index == 0 && app.route == HomeRoute.discovery) {
+      await app.perform(app.bluetooth.startScan);
+    }
+    if (app.area == AppArea.gsm && index == 0) {
+      try {
+        await app.refreshGsmDevices();
+        app.notifyListeners();
+      } on AppException catch (error) {
+        if (error.key == 'error.unauthorized') await app.signOut();
+      }
+    }
+  }
+
+  Widget _body(AppModel app) => switch (app.area) {
+    AppArea.root => rootTab == 0 ? HomePage(app) : AccountPage(app),
+    AppArea.composition => app.areaTab == 0
+        ? HomePage(app, flow: true)
+        : DevicesPage(app, kind: DeviceListKind.composition),
+    AppArea.gsm => app.areaTab == 0
+        ? DevicesPage(app, kind: DeviceListKind.gsm)
+        : GsmScanPage(app, embedded: true),
+  };
+
+  List<BottomNavigationBarItem> _items(AppModel app) => switch (app.area) {
+    AppArea.root => [
+      BottomNavigationBarItem(icon: const Icon(Icons.home_outlined), label: app.t('tab.home')),
+      BottomNavigationBarItem(
+        icon: const Icon(Icons.account_circle_outlined),
+        label: app.t('tab.account'),
+      ),
+    ],
+    AppArea.composition => [
+      BottomNavigationBarItem(icon: const Icon(Icons.bluetooth), label: app.t('tab.connect')),
+      BottomNavigationBarItem(
+        icon: const Icon(Icons.sensors),
+        label: app.t('tab.composition_devices'),
+      ),
+    ],
+    AppArea.gsm => [
+      BottomNavigationBarItem(icon: const Icon(Icons.list_alt), label: app.t('tab.gsm_data')),
+      BottomNavigationBarItem(
+        icon: const Icon(Icons.bluetooth_searching),
+        label: app.t('tab.gsm_connect'),
+      ),
+    ],
+  };
 
   @override
   Widget build(BuildContext context) {
     final app = widget.app;
-    final canBack = tab == 0 && app.route != HomeRoute.projects;
+    final inside = app.area != AppArea.root;
+    final current = inside ? app.areaTab : rootTab;
     return PopScope(
-      canPop: !canBack && !app.busy,
+      canPop: !inside && !app.busy,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && canBack && !app.busy) app.back();
+        if (!didPop && inside && !app.busy) unawaited(_back(app));
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(title),
-          leading: canBack
+          title: Text(_title(app)),
+          leading: inside
               ? IconButton(
                   tooltip: app.t('common.back'),
-                  onPressed: app.busy ? null : app.back,
+                  onPressed: app.busy ? null : () => _back(app),
                   icon: const Icon(Icons.chevron_left, color: indigo),
                 )
               : null,
         ),
-        body: SafeArea(
-          top: false,
-          child: switch (tab) {
-            0 => HomePage(app),
-            1 => DevicesPage(app),
-            _ => AccountPage(app),
-          },
-        ),
+        body: SafeArea(top: false, child: _body(app)),
         bottomNavigationBar: BottomNavigationBar(
           elevation: 0,
-          currentIndex: tab,
+          currentIndex: current,
           selectedItemColor: indigo,
           unselectedItemColor: muted,
           backgroundColor: Colors.white,
-          onTap: (index) async {
-            if (app.busy || tab == index) return;
-            setState(() => tab = index);
-            if (index != 0) await app.bluetooth.stopScan();
-            if (index == 1) await app.showDevices();
-          },
-          items: [
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.home_outlined),
-              label: app.t('tab.home'),
-            ),
-            BottomNavigationBarItem(icon: const Icon(Icons.sensors), label: app.t('tab.devices')),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.account_circle_outlined),
-              label: app.t('tab.account'),
-            ),
-          ],
+          onTap: (index) => _select(app, index),
+          items: _items(app),
         ),
       ),
     );

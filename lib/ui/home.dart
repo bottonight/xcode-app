@@ -5,35 +5,22 @@ import '../app_model.dart';
 import '../models.dart';
 import 'design.dart';
 import 'fabrics.dart';
-import 'gsm_history.dart';
 
 class HomePage extends StatelessWidget {
-  const HomePage(this.app, {super.key});
+  const HomePage(this.app, {this.flow = false, super.key});
   final AppModel app;
+  final bool flow;
   @override
-  Widget build(BuildContext context) => switch (app.route) {
-    HomeRoute.projects => _projects(context),
-    HomeRoute.discovery => _discovery(context),
-    HomeRoute.modes => _modes(),
-    HomeRoute.workbench => _workbench(context),
-  };
-  Future<void> _openGsm(BuildContext context) async {
-    if (app.gsmDevices.isEmpty) {
-      try {
-        await app.refreshGsmDevices();
-      } on AppException catch (error) {
-        if (error.key == 'error.unauthorized') await app.signOut();
-        return;
-      }
-    }
-    if (!context.mounted) return;
-    await Navigator.push<void>(
-      context,
-      MaterialPageRoute<void>(builder: (_) => GsmHistoryPage(app)),
-    );
+  Widget build(BuildContext context) {
+    if (!flow) return _projects();
+    return switch (app.route) {
+      HomeRoute.modes => _modes(),
+      HomeRoute.workbench => _workbench(context),
+      _ => _discovery(context),
+    };
   }
 
-  Widget _projects(BuildContext context) => PageBody(
+  Widget _projects() => PageBody(
     children: [
       LayoutBuilder(
         builder: (context, constraints) {
@@ -42,12 +29,12 @@ class HomePage extends StatelessWidget {
             (
               icon: Icons.monitor_heart_outlined,
               title: app.t('project.composition'),
-              onTap: app.discover,
+              onTap: app.openComposition,
             ),
             (
               icon: Icons.scale_outlined,
               title: app.t('project.gsm'),
-              onTap: () => _openGsm(context),
+              onTap: app.openGsm,
             ),
             (icon: Icons.show_chart, title: app.t('project.coming_soon'), onTap: null),
             (icon: Icons.grid_on, title: app.t('project.coming_soon'), onTap: null),

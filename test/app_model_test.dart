@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
@@ -48,6 +49,18 @@ class _CountingGsmApi extends GsmApi {
     deviceLoads++;
     return [GsmDevice(id: 'g1', name: '克重$deviceLoads')];
   }
+}
+
+class _FixedGsmApi extends GsmApi {
+  _FixedGsmApi(this.result);
+  final List<GsmDevice> result;
+  @override
+  Future<List<GsmDevice>> devices() async => result;
+}
+
+class _FailingGsmApi extends GsmApi {
+  @override
+  Future<List<GsmDevice>> devices() async => throw const AppException('error.http', 500);
 }
 
 class TestApi extends FabricApi {
@@ -212,6 +225,69 @@ void main() {
     await reopened.showDevices();
     expect(reopenedApi.deviceLoads, 1);
     expect(reopenedGsm.deviceLoads, 1);
+  });
+
+  test('GSM device refresh overwrites the cache with the server list', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const account = '13800138000';
+    SharedPreferences.setMockInitialValues({
+      'gsm-devices-$account': jsonEncode([
+        {'device_id': 'gone', 'device_name': '已解绑'},
+        {'device_id': 'g1', 'device_name': '旧名'},
+      ]),
+    });
+    final app = AppModel(
+      api: _CountingDevicesApi(),
+      bluetooth: TestBluetooth(),
+      gsmApi: _FixedGsmApi(const [
+        GsmDevice(id: 'g1', name: '克重1'),
+        GsmDevice(id: 'g2', name: '克重2'),
+      ]),
+    )..session = const UserSession(
+      userId: '1',
+      phone: account,
+      email: '',
+      username: 'Test',
+      token: 't',
+      adminLevel: 0,
+    );
+
+    await app.refreshGsmDevices();
+
+    expect(app.gsmDevices.map((device) => '${device.id}:${device.name}'), ['g1:克重1', 'g2:克重2']);
+    final stored = jsonDecode(
+      (await SharedPreferences.getInstance()).getString('gsm-devices-$account')!,
+    );
+    expect(stored, [
+      {'device_id': 'g1', 'device_name': '克重1'},
+      {'device_id': 'g2', 'device_name': '克重2'},
+    ]);
+  });
+
+  test('GSM device refresh keeps the cache when the server request fails', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const account = '13800138000';
+    final cached = jsonEncode([
+      {'device_id': 'g1', 'device_name': '克重1'},
+    ]);
+    SharedPreferences.setMockInitialValues({'gsm-devices-$account': cached});
+    final app = AppModel(
+      api: _CountingDevicesApi(),
+      bluetooth: TestBluetooth(),
+      gsmApi: _FailingGsmApi(),
+    )..session = const UserSession(
+      userId: '1',
+      phone: account,
+      email: '',
+      username: 'Test',
+      token: 't',
+      adminLevel: 0,
+    );
+
+    await app.refreshGsmDevices();
+
+    expect(app.gsmDevices.single.id, 'g1');
+    expect((await SharedPreferences.getInstance()).getString('gsm-devices-$account'), cached);
   });
 
   test('Battery color is green at 50+, yellow from 20, red below 20', () {
