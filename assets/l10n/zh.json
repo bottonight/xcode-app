@@ -343,6 +343,8 @@
   "gsm.reading_info": "正在读取设备信息",
   "gsm.reading_ip": "正在获取IP地址",
   "gsm.ip": "设备IP地址",
+  "gsm.guide_title": "绑定设备",
+  "gsm.guide_required": "首次连接必须完成绑定，完成前无法操作此页。",
   "gsm.guide_wifi": "请为设备配置 WiFi，以便更新以及上传数据。",
   "gsm.guide_cal": "请返回到设备上按提示进行校准。",
   "gsm.guide_skip": "没有网络，跳过",

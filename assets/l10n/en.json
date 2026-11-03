@@ -343,6 +343,8 @@
   "gsm.reading_info": "Reading device info",
   "gsm.reading_ip": "Reading IP address",
   "gsm.ip": "Device IP",
+  "gsm.guide_title": "Bind this device",
+  "gsm.guide_required": "Binding is required on the first connection. This page stays locked until it is finished.",
   "gsm.guide_wifi": "Connect the device to Wi-Fi so it can upload data and receive updates.",
   "gsm.guide_cal": "Return to the device and follow its calibration prompt.",
   "gsm.guide_skip": "Skip, no network",

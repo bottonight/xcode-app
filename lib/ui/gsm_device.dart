@@ -192,6 +192,7 @@ class _GsmDevicePageState extends State<GsmDevicePage> {
   Future<void> _wifi() async {
     final result = await showDialog<_WifiChoice>(
       context: context,
+      barrierDismissible: guideStep != 0,
       builder: (context) => _WifiDialog(
         app: widget.app,
         supports5g: link.hardware?.supports5g ?? false,
@@ -280,124 +281,128 @@ class _GsmDevicePageState extends State<GsmDevicePage> {
         : link.networkStatus == 'disconnected'
         ? Colors.red
         : muted;
-    return Scaffold(
-      appBar: AppBar(title: Text(app.t('gsm.device_title'))),
-      body: PageBody(
+    return PopScope(
+      canPop: guideStep == null,
+      child: Stack(
         children: [
-          if (guideStep != null)
-            BrandCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(app.t(guideStep == 0 ? 'gsm.guide_wifi' : 'gsm.guide_cal')),
-                  const SizedBox(height: 12),
-                  if (guideStep == 0)
-                    FilledButton(onPressed: _wifi, child: Text(app.t('gsm.wifi')))
-                  else
-                    FilledButton(onPressed: _finishGuide, child: Text(app.t('gsm.guide_done'))),
-                ],
-              ),
-            ),
-          BrandCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Scaffold(
+            appBar: AppBar(title: Text(app.t('gsm.device_title'))),
+            body: PageBody(
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.scale_outlined, color: indigo, size: 42),
-                    const Spacer(),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        InkWell(
-                          onTap: _network,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                BrandCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.scale_outlined, color: indigo, size: 42),
+                          const Spacer(),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Icon(Icons.wifi, color: networkColor, size: 18),
-                              const SizedBox(width: 4),
-                              Text(
-                                app.t(
-                                  link.networkStatus == 'connected'
-                                      ? 'gsm.network_on'
-                                      : link.networkStatus == 'disconnected'
-                                      ? 'gsm.network_off'
-                                      : 'gsm.network_unknown',
+                              InkWell(
+                                onTap: _network,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.wifi, color: networkColor, size: 18),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      app.t(
+                                        link.networkStatus == 'connected'
+                                            ? 'gsm.network_on'
+                                            : link.networkStatus == 'disconnected'
+                                            ? 'gsm.network_off'
+                                            : 'gsm.network_unknown',
+                                      ),
+                                      style: TextStyle(color: networkColor, fontSize: 12),
+                                    ),
+                                    if (link.networkStatus == 'connected' && link.wifiSignal > 0)
+                                      Text(
+                                        ' (${link.wifiSignal})',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                  ],
                                 ),
-                                style: TextStyle(color: networkColor, fontSize: 12),
                               ),
-                              if (link.networkStatus == 'connected' && link.wifiSignal > 0)
-                                Text(' (${link.wifiSignal})', style: const TextStyle(fontSize: 12)),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.bluetooth, color: indigo, size: 18),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${app.t('gsm.ble_signal')} (${link.bluetoothSignal})',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ],
+                              ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      InkWell(
+                        onTap: _rename,
+                        child: Row(
                           children: [
-                            const Icon(Icons.bluetooth, color: indigo, size: 18),
-                            const SizedBox(width: 4),
+                            Expanded(child: Heading(_name)),
                             Text(
-                              '${app.t('gsm.ble_signal')} (${link.bluetoothSignal})',
-                              style: const TextStyle(fontSize: 12),
+                              app.t('gsm.tap_edit'),
+                              style: const TextStyle(color: muted, fontSize: 12),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                InkWell(
-                  onTap: _rename,
-                  child: Row(
-                    children: [
-                      Expanded(child: Heading(_name)),
-                      Text(
-                        app.t('gsm.tap_edit'),
-                        style: const TextStyle(color: muted, fontSize: 12),
                       ),
+                      const SizedBox(height: 4),
+                      SelectableText(link.id, style: const TextStyle(color: muted, fontSize: 12)),
+                      if (loading) ...[const SizedBox(height: 16), const LinearProgressIndicator()],
+                      if (error != null) ...[
+                        const SizedBox(height: 8),
+                        Text(error!, style: const TextStyle(color: Colors.red)),
+                      ],
+                      if (bindStatus.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          bindStatus == 'self'
+                              ? app.t('gsm.bound_self')
+                              : bindStatus == 'other'
+                              ? app.t('gsm.bound_other', boundPhone)
+                              : app.t('gsm.unbound'),
+                          style: TextStyle(
+                            color: bindStatus == 'other' ? Colors.orange.shade800 : indigo,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                SelectableText(link.id, style: const TextStyle(color: muted, fontSize: 12)),
-                if (loading) ...[const SizedBox(height: 16), const LinearProgressIndicator()],
-                if (error != null) ...[
-                  const SizedBox(height: 8),
-                  Text(error!, style: const TextStyle(color: Colors.red)),
-                ],
-                if (bindStatus.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    bindStatus == 'self'
-                        ? app.t('gsm.bound_self')
-                        : bindStatus == 'other'
-                        ? app.t('gsm.bound_other', boundPhone)
-                        : app.t('gsm.unbound'),
-                    style: TextStyle(
-                      color: bindStatus == 'other' ? Colors.orange.shade800 : indigo,
-                    ),
-                  ),
-                ],
+                FilledButton.icon(
+                  onPressed: _info,
+                  icon: const Icon(Icons.info_outline),
+                  label: Text(app.t('gsm.info')),
+                ),
+                FilledButton.icon(
+                  onPressed: link.connected ? _wifi : null,
+                  icon: const Icon(Icons.wifi),
+                  label: Text(app.t('gsm.wifi')),
+                ),
+                FilledButton.icon(
+                  onPressed: link.connected ? _update : null,
+                  icon: const Icon(Icons.system_update_alt),
+                  label: Text(app.t('gsm.update')),
+                ),
               ],
             ),
           ),
-          FilledButton.icon(
-            onPressed: _info,
-            icon: const Icon(Icons.info_outline),
-            label: Text(app.t('gsm.info')),
-          ),
-          FilledButton.icon(
-            onPressed: link.connected ? _wifi : null,
-            icon: const Icon(Icons.wifi),
-            label: Text(app.t('gsm.wifi')),
-          ),
-          FilledButton.icon(
-            onPressed: link.connected ? _update : null,
-            icon: const Icon(Icons.system_update_alt),
-            label: Text(app.t('gsm.update')),
-          ),
+          if (guideStep != null) ...[
+            const Positioned.fill(
+              child: ModalBarrier(dismissible: false, color: Color(0x99000000)),
+            ),
+            Center(
+              child: _BindGuide(app: app, step: guideStep!, onWifi: _wifi, onDone: _finishGuide),
+            ),
+          ],
         ],
       ),
     );
@@ -432,47 +437,201 @@ class _WifiDialogState extends State<_WifiDialog> {
   @override
   Widget build(BuildContext context) {
     final app = widget.app;
-    return AlertDialog(
-      title: Text(app.t('gsm.wifi_title')),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (!widget.supports5g)
-            Text(app.t('gsm.wifi_24g'), style: const TextStyle(color: Colors.orange)),
-          TextField(
-            controller: name,
-            decoration: InputDecoration(labelText: app.t('gsm.wifi_name')),
-          ),
-          TextField(
-            controller: password,
-            obscureText: !visible,
-            decoration: InputDecoration(
-              labelText: app.t('gsm.wifi_password'),
-              suffixIcon: IconButton(
-                onPressed: () => setState(() => visible = !visible),
-                icon: Icon(visible ? Icons.visibility_off : Icons.visibility),
+    final fields = InputDecoration(
+      filled: true,
+      fillColor: const Color(0xFFF4F5F8),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: indigo, width: 1.4),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    );
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: indigo.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.wifi, color: indigo),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    app.t('gsm.wifi_title'),
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            if (!widget.supports5g) ...[
+              const SizedBox(height: 14),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF6E8),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 18, color: Colors.orange.shade800),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          app.t('gsm.wifi_24g'),
+                          style: TextStyle(color: Colors.orange.shade900, height: 1.3),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            TextField(
+              controller: name,
+              textInputAction: TextInputAction.next,
+              decoration: fields.copyWith(
+                labelText: app.t('gsm.wifi_name'),
+                prefixIcon: const Icon(Icons.wifi_tethering),
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            TextField(
+              controller: password,
+              obscureText: !visible,
+              decoration: fields.copyWith(
+                labelText: app.t('gsm.wifi_password'),
+                prefixIcon: const Icon(Icons.lock_outline),
+                suffixIcon: IconButton(
+                  onPressed: () => setState(() => visible = !visible),
+                  icon: Icon(visible ? Icons.visibility_off : Icons.visibility),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            FilledButton(
+              onPressed: () {
+                if (name.text.trim().isEmpty || password.text.trim().isEmpty) {
+                  app.showMessage(app.t('gsm.wifi_required'));
+                  return;
+                }
+                Navigator.pop(context, _WifiChoice(name.text.trim(), password.text.trim()));
+              },
+              child: Text(app.t('common.ok')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(
+                context,
+                widget.guided ? const _WifiChoice('', '', skip: true) : null,
+              ),
+              child: Text(app.t(widget.guided ? 'gsm.guide_skip' : 'common.cancel')),
+            ),
+          ],
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () =>
-              Navigator.pop(context, widget.guided ? const _WifiChoice('', '', skip: true) : null),
-          child: Text(app.t(widget.guided ? 'gsm.guide_skip' : 'common.cancel')),
+    );
+  }
+}
+
+class _BindGuide extends StatelessWidget {
+  const _BindGuide({
+    required this.app,
+    required this.step,
+    required this.onWifi,
+    required this.onDone,
+  });
+  final AppModel app;
+  final int step;
+  final VoidCallback onWifi, onDone;
+
+  @override
+  Widget build(BuildContext context) {
+    final wifi = step == 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 28),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Material(
+          color: Colors.white,
+          elevation: 8,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: indigo.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(wifi ? Icons.wifi : Icons.tune, color: indigo),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            app.t('gsm.guide_title'),
+                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            wifi ? '1 / 2' : '2 / 2',
+                            style: const TextStyle(color: muted, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  app.t('gsm.guide_required'),
+                  style: const TextStyle(color: muted, height: 1.35),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  app.t(wifi ? 'gsm.guide_wifi' : 'gsm.guide_cal'),
+                  style: const TextStyle(fontSize: 16, height: 1.4),
+                ),
+                const SizedBox(height: 18),
+                FilledButton(
+                  onPressed: wifi ? onWifi : onDone,
+                  child: Text(app.t(wifi ? 'gsm.wifi' : 'gsm.guide_done')),
+                ),
+              ],
+            ),
+          ),
         ),
-        FilledButton(
-          onPressed: () {
-            if (name.text.trim().isEmpty || password.text.trim().isEmpty) {
-              app.showMessage(app.t('gsm.wifi_required'));
-              return;
-            }
-            Navigator.pop(context, _WifiChoice(name.text.trim(), password.text.trim()));
-          },
-          child: Text(app.t('common.ok')),
-        ),
-      ],
+      ),
     );
   }
 }
