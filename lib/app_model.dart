@@ -335,12 +335,6 @@ class AppModel extends ChangeNotifier {
     area = AppArea.gsm;
     areaTab = 0;
     notifyListeners();
-    try {
-      await refreshGsmDevices();
-      notifyListeners();
-    } on AppException catch (error) {
-      if (error.key == 'error.unauthorized') await signOut();
-    }
   }
 
   void selectAreaTab(int index) {

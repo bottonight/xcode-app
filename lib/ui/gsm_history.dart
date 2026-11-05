@@ -39,13 +39,28 @@ class _GsmHistoryPageState extends State<GsmHistoryPage> {
   }
 
   Future<void> _boot() async {
+    if (mounted) setState(() => loading = true);
+    try {
+      await widget.app.refreshGsmDevices();
+    } on AppException catch (error) {
+      if (!mounted) return;
+      if (error.key == 'error.unauthorized') {
+        await widget.app.signOut();
+        return;
+      }
+      setState(() {
+        this.error = gsmErrorText(widget.app.t, error);
+        loading = false;
+      });
+      return;
+    }
+    if (!mounted) return;
     final previous = device?.id;
     _pickDevice();
     if (device?.id != previous) {
       _historyCache.clearCache();
       _detailCache.clear();
     }
-    if (!mounted) return;
     if (device == null) {
       setState(() => loading = false);
       return;
