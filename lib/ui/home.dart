@@ -294,6 +294,7 @@ class HomePage extends StatelessWidget {
           ],
         ),
       ),
+      WorkbenchResults(app),
       BrandCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -332,7 +333,6 @@ class HomePage extends StatelessWidget {
           ],
         ),
       ),
-      WorkbenchResults(app),
       if ((app.session?.adminLevel ?? 0) >= 1)
         BrandCard(
           child: Column(

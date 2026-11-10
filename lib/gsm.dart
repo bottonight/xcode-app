@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+
 import 'models.dart';
 
 const gsmCommonLabels = ['品名', '成分', '门幅', '标称克重', '纱支', '报价', '备注', '织造方式'];
@@ -432,6 +434,49 @@ String gsmErrorText(String Function(String key, [Object? value]) translate, Obje
   if (error is AppException) {
     return error.key == 'server' ? '${error.detail}' : translate(error.key, error.detail);
   }
-  if (error is TimeoutException) return translate('error.connect', '$error');
-  return translate('error.connect', '$error');
+  final ble = bleErrorKey(error);
+  if (ble != null) return translate(ble);
+  if (error is TimeoutException) return translate('error.timeout');
+  return translate('error.connect', translate('error.try_again'));
+}
+
+String? bleErrorKey(Object error) {
+  if (error is! FlutterBluePlusException) {
+    final text = '$error'.toLowerCase();
+    if (text.contains('flutterblueplus') &&
+        (text.contains('not connected') ||
+            text.contains('fbp-code: 6') ||
+            text.contains('fbp-code:6'))) {
+      return 'bt.ble_disconnected';
+    }
+    if (text.contains('flutterblueplus')) return 'bt.ble_failed';
+    return null;
+  }
+  final description = (error.description ?? '').toLowerCase();
+  if (description.contains('not connected') || description.contains('disconnected')) {
+    return 'bt.ble_disconnected';
+  }
+  if (error.platform == ErrorPlatform.fbp) {
+    final index = error.code ?? -1;
+    final code = index >= 0 && index < FbpErrorCode.values.length
+        ? FbpErrorCode.values[index]
+        : null;
+    return switch (code) {
+      FbpErrorCode.deviceIsDisconnected => 'bt.ble_disconnected',
+      FbpErrorCode.timeout => 'bt.ble_timeout',
+      FbpErrorCode.adapterIsOff => 'bt.off',
+      FbpErrorCode.serviceNotFound => 'bt.no_service',
+      FbpErrorCode.characteristicNotFound => 'bt.missing_char_plain',
+      FbpErrorCode.createBondFailed || FbpErrorCode.removeBondFailed => 'bt.bond_failed',
+      FbpErrorCode.connectionCanceled => 'bt.connection_canceled',
+      FbpErrorCode.userRejected => 'bt.user_rejected',
+      FbpErrorCode.androidOnly || FbpErrorCode.applePlatformOnly => 'bt.platform_unsupported',
+      _ => description.contains('timeout') ? 'bt.ble_timeout' : 'bt.ble_failed',
+    };
+  }
+  if (description.contains('timeout')) return 'bt.ble_timeout';
+  if (description.contains('adapter') || description.contains('bluetooth is off')) return 'bt.off';
+  if (description.contains('service')) return 'bt.no_service';
+  if (description.contains('characteristic')) return 'bt.missing_char_plain';
+  return 'bt.ble_failed';
 }

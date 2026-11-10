@@ -186,8 +186,8 @@ class AppModel extends ChangeNotifier {
     message = error is AppException
         ? (error.key == 'server' ? '${error.detail}' : t(error.key, error.detail))
         : error is TimeoutException
-        ? t('bt.timeout', t('busy.processing'))
-        : t('error.connect', '$error');
+        ? t('error.timeout')
+        : gsmErrorText(t, error);
     notifyListeners();
   }
 

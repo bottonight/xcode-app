@@ -1,7 +1,10 @@
 import 'dart:convert';
 
+import 'dart:async';
+
 import 'package:fabriclab/gsm.dart';
 import 'package:fabriclab/services/gsm_api.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -134,6 +137,51 @@ void main() {
     cache.set(detail('9', '针织'));
     cache.clear();
     expect(cache.detailCache, isEmpty);
+  });
+
+  test('bluetooth plugin errors become readable text', () {
+    String zh(String key, [Object? value]) => switch (key) {
+      'bt.ble_disconnected' => '设备蓝牙连接已断开',
+      'bt.missing_char_plain' => '设备缺少必要的蓝牙特征',
+      'bt.ble_timeout' => '蓝牙操作超时，请靠近设备后重试',
+      'bt.ble_failed' => '蓝牙通信失败，请重新连接设备',
+      'error.timeout' => '请求超时，请重试',
+      'error.try_again' => '请稍后重试',
+      'error.connect' => '无法连接服务器：$value',
+      _ => key,
+    };
+    expect(
+      gsmErrorText(
+        zh,
+        FlutterBluePlusException(
+          ErrorPlatform.fbp,
+          'writeCharacteristic',
+          FbpErrorCode.deviceIsDisconnected.index,
+          'device is not connected',
+        ),
+      ),
+      '设备蓝牙连接已断开',
+    );
+    expect(
+      gsmErrorText(
+        zh,
+        FlutterBluePlusException(
+          ErrorPlatform.fbp,
+          'writeCharacteristic',
+          FbpErrorCode.characteristicNotFound.index,
+          'characteristic not found',
+        ),
+      ),
+      '设备缺少必要的蓝牙特征',
+    );
+    expect(
+      gsmErrorText(
+        zh,
+        FlutterBluePlusException(ErrorPlatform.android, 'connect', 133, 'gatt error'),
+      ),
+      '蓝牙通信失败，请重新连接设备',
+    );
+    expect(gsmErrorText(zh, TimeoutException('BLE')), '请求超时，请重试');
   });
 
   test('Empty GSM collections arrive as objects', () async {
